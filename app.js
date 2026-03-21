@@ -28,6 +28,9 @@ const DEFAULT_SETTINGS = {
       descriptions: {uses: 0, ok: 0, fail: 0, avgScore: 0, trendWeights: {}, lastUsedAt: ''},
       growth: {uses: 0, ok: 0, fail: 0, avgScore: 0, trendWeights: {}, lastUsedAt: ''}
     }
+  },
+  tooling: {
+    customTools: []
   }
 };
 
@@ -87,6 +90,21 @@ function ensureSettingsShape(raw){
           lastUsedAt: String(s.promptOptimizer?.tasks?.growth?.lastUsedAt || '')
         }
       }
+    },
+    tooling: {
+      customTools: Array.isArray(s.tooling?.customTools)
+        ? s.tooling.customTools
+          .filter(Boolean)
+          .map(t=>({
+            id: String(t.id || `tool-${Math.random().toString(36).slice(2,8)}`),
+            name: String(t.name || 'Untitled Tool'),
+            group: String(t.group || 'Custom'),
+            status: String(t.status || 'planned'),
+            description: String(t.description || ''),
+            inputs: String(t.inputs || ''),
+            outputs: String(t.outputs || '')
+          }))
+        : []
     }
   };
 }
@@ -353,6 +371,43 @@ function buildGrowthPrompt({transcript=''}={}){
     '{"clips":[{"start":"mm:ss","hook":"...","reason":"..."}],"retention_tip":"..."}'
   ].join('\n');
 }
+function getBaseToolRegistry(){
+  return [
+    {id:'core-projects',name:'Project Manager',group:'Core',status:'implemented',description:'Správa projektů podle URL/ID s lokálním úložištěm.',inputs:'video URL, metadata',outputs:'project state'},
+    {id:'core-descriptions',name:'Smart Description',group:'Core',status:'implemented',description:'Generování YouTube/Spotify textů s LLM fallbackem.',inputs:'timeline, desc',outputs:'youtube text, spotify html'},
+    {id:'growth-scout',name:'Growth & Clips Scout',group:'Growth',status:'implemented',description:'Hledání clip kandidátů a retention tipů.',inputs:'transcript/timeline',outputs:'clips, retention tip'},
+    {id:'titles-engine',name:'Strategic Titles Engine',group:'Titles',status:'implemented',description:'Návrhy title variant podle strategií CTR.',inputs:'transcript, trends',outputs:'title variants'},
+    {id:'trend-ingest',name:'Trend Ingestor',group:'Discovery',status:'implemented',description:'Načítání trend keywordů (CZ/US).',inputs:'RSS feeds',outputs:'trend snapshot'},
+    {id:'thumbnail-lab',name:'Thumbnail Lab',group:'Creative',status:'implemented',description:'Skórování thumbnail textu.',inputs:'thumb text',outputs:'score'},
+    {id:'publish-router',name:'Publish Router',group:'Distribution',status:'planned',description:'Směrování výstupů dle channel mode a publish mode.',inputs:'channel settings',outputs:'publish payload'},
+    {id:'ab-lab',name:'A/B Experiment Lab',group:'Experiments',status:'planned',description:'Testovací varianty title/thumbnail/description.',inputs:'variants',outputs:'winner recommendation'},
+    {id:'analytics-hub',name:'Analytics Hub',group:'Analytics',status:'planned',description:'Konsolidace výkonových metrik napříč platformami.',inputs:'platform metrics',outputs:'kpi dashboard'},
+    {id:'automation-engine',name:'Automation Engine',group:'Automation',status:'planned',description:'Plánované dávky a trigger-based workflow.',inputs:'schedule, triggers',outputs:'executed jobs'}
+  ];
+}
+function getMergedToolRegistry(settings){
+  const s=ensureSettingsShape(settings);
+  const base=getBaseToolRegistry();
+  const byId=new Map(base.map(x=>[x.id,x]));
+  for(const c of (s.tooling?.customTools||[])){
+    byId.set(c.id, {...c});
+  }
+  return [...byId.values()];
+}
+function addCustomToolToSettings(settings, toolInput={}){
+  const s=ensureSettingsShape(settings);
+  const tool={
+    id:String(toolInput.id || `custom-${Date.now().toString(36)}`),
+    name:String(toolInput.name || 'Custom Tool'),
+    group:String(toolInput.group || 'Custom'),
+    status:String(toolInput.status || 'planned'),
+    description:String(toolInput.description || ''),
+    inputs:String(toolInput.inputs || ''),
+    outputs:String(toolInput.outputs || '')
+  };
+  s.tooling.customTools = [...(s.tooling.customTools||[]), tool];
+  return s;
+}
 
 function _avg(nums=[]){
   const v=nums.filter(n=>Number.isFinite(Number(n))).map(Number);
@@ -555,7 +610,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)

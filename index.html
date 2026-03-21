@@ -21,6 +21,11 @@
 .modal{width:min(560px,92vw);background:#fff;border:1px solid #dbe2ef;border-radius:14px;padding:14px}
 .modal h3{margin-bottom:8px}
 .modal .actions{justify-content:flex-end}
+.tool-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tool-card{border:1px solid #dbe2ef;border-radius:12px;padding:10px;background:#fff}
+.tool-card h4{margin-bottom:4px}
+.tool-meta{font-size:12px;color:#64748b}
+@media(max-width:900px){.tool-grid{grid-template-columns:1fr}}
 </style></head><body>
 <nav class="nav"><div class="brand">erem Studio</div><a class="active" href="./">Studio</a><button class="btn s" id="openSettings">Nastavení API</button></nav>
 <main class="wrap"><h1 class="page-title">erem Video Studio</h1><p class="page-sub">Přehledný workspace: projekty, title engine, popisky, growth i clipy na jedné stránce.</p>
@@ -51,6 +56,7 @@
       <button class="tab" role="tab" aria-selected="false" aria-controls="growth" id="tab-growth" data-pane="growth">Growth</button>
       <button class="tab" role="tab" aria-selected="false" aria-controls="clips" id="tab-clips" data-pane="clips">Clipy</button>
       <button class="tab" role="tab" aria-selected="false" aria-controls="settings" id="tab-settings" data-pane="settings">Nastavení</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="tools" id="tab-tools" data-pane="tools">Nástroje</button>
     </div>
     <div id="statusMsg" class="mini" aria-live="polite"></div>
 
@@ -163,6 +169,30 @@
         <button class="btn s" id="importOptimizerJson">Import optimizer JSON</button>
       </div>
     </div>
+
+    <div id="tools" class="pane" role="tabpanel" aria-labelledby="tab-tools">
+      <h3>Tool Registry</h3>
+      <p class="mini">Kompletní rozložení aplikace připravené pro implementaci nových nástrojů.</p>
+      <div class="row">
+        <div><label>Hledat</label><input id="toolSearch" placeholder="např. analytics, publish, title"></div>
+        <div><label>Status</label><select id="toolStatusFilter"><option value="all">all</option><option value="implemented">implemented</option><option value="planned">planned</option></select></div>
+      </div>
+      <label>Skupina</label><select id="toolGroupFilter"></select>
+      <div id="toolCatalog" class="tool-grid"></div>
+
+      <h3>Scaffold nového nástroje</h3>
+      <div class="row">
+        <div><label>Název</label><input id="newToolName" placeholder="např. Publishing Sync"></div>
+        <div><label>Skupina</label><input id="newToolGroup" placeholder="např. Distribution"></div>
+      </div>
+      <div class="row">
+        <div><label>Status</label><select id="newToolStatus"><option value="planned">planned</option><option value="implemented">implemented</option></select></div>
+        <div><label>Inputy</label><input id="newToolInputs" placeholder="např. video metadata, publish window"></div>
+      </div>
+      <label>Outputy</label><input id="newToolOutputs" placeholder="např. publish jobs, sync report">
+      <label>Popis</label><textarea id="newToolDescription" placeholder="Co nástroj dělá a proč je důležitý."></textarea>
+      <div class="actions"><button class="btn p" id="addToolScaffold">Přidat do registry</button></div>
+    </div>
   </section>
 </div></main>
 <div class="modal-bg" id="settingsModalBg" aria-hidden="true">
@@ -249,7 +279,34 @@ function readSettingsTab(){
   });
   Studio.state.settings=next;
   Studio.save();
+  renderToolCatalog();
   return next;
+}
+function getToolsFiltered(){
+  const reg=Studio.getMergedToolRegistry(getProjectSettings());
+  const q=(document.getElementById('toolSearch').value||'').toLowerCase().trim();
+  const status=document.getElementById('toolStatusFilter').value;
+  const group=document.getElementById('toolGroupFilter').value;
+  return reg.filter(t=>{
+    const txt=`${t.name} ${t.group} ${t.status} ${t.description} ${t.inputs} ${t.outputs}`.toLowerCase();
+    if(q && !txt.includes(q)) return false;
+    if(status!=='all' && t.status!==status) return false;
+    if(group!=='all' && t.group!==group) return false;
+    return true;
+  });
+}
+function renderToolGroupFilter(){
+  const reg=Studio.getMergedToolRegistry(getProjectSettings());
+  const groups=[...new Set(reg.map(x=>x.group))].sort((a,b)=>a.localeCompare(b,'cs'));
+  const el=document.getElementById('toolGroupFilter');
+  const curr=el.value||'all';
+  el.innerHTML=["<option value='all'>all</option>",...groups.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`)].join('');
+  if([...el.options].some(o=>o.value===curr)) el.value=curr;
+}
+function renderToolCatalog(){
+  renderToolGroupFilter();
+  const list=getToolsFiltered();
+  document.getElementById('toolCatalog').innerHTML=list.map(t=>`<div class='tool-card'><h4>${esc(t.name)}</h4><div class='tool-meta'>${esc(t.group)} · ${esc(t.status)}</div><div>${esc(t.description)}</div><div class='mini'>In: ${esc(t.inputs||'-')}</div><div class='mini'>Out: ${esc(t.outputs||'-')}</div></div>`).join('');
 }
 function openSettingsModal(){
   const bg=document.getElementById('settingsModalBg');
@@ -674,6 +731,23 @@ document.getElementById('importOptimizerJson').onclick=()=>{
   };
   fr.readAsText(file);
 };
+document.getElementById('toolSearch').oninput=renderToolCatalog;
+document.getElementById('toolStatusFilter').onchange=renderToolCatalog;
+document.getElementById('toolGroupFilter').onchange=renderToolCatalog;
+document.getElementById('addToolScaffold').onclick=()=>{
+  const name=(document.getElementById('newToolName').value||'').trim();
+  if(!name){ setStatus('Vyplň název nástroje.'); return; }
+  const group=(document.getElementById('newToolGroup').value||'').trim() || 'Custom';
+  const status=document.getElementById('newToolStatus').value||'planned';
+  const inputs=(document.getElementById('newToolInputs').value||'').trim();
+  const outputs=(document.getElementById('newToolOutputs').value||'').trim();
+  const description=(document.getElementById('newToolDescription').value||'').trim();
+  const s=getProjectSettings();
+  Studio.state.settings = Studio.addCustomToolToSettings(s,{name,group,status,inputs,outputs,description});
+  Studio.save();
+  renderToolCatalog();
+  setStatus('Tool scaffold přidán do registry.');
+};
 
-renderSettingsTab();renderPresetSelect();fillOutputs();renderProjects();renderOutliers();updateKpis();
+renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();
 </script></body></html>
