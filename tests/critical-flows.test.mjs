@@ -143,3 +143,37 @@ test('marketplace template installs into prompt settings', () => {
   assert.notEqual(after, before);
   assert.ok(after.includes('agresivnější hook'));
 });
+
+test('clip pipeline builder returns hooks/scripts/hashtags', () => {
+  const Studio = loadStudio();
+  const out = Studio.buildClipPipelineFromClips([
+    { start: '00:12', hook: 'Největší fail týdne', reason: 'Krátký kontext' }
+  ]);
+  assert.equal(Array.isArray(out), true);
+  assert.equal(out.length, 1);
+  assert.ok(out[0].script.includes('Největší fail týdne'));
+  assert.ok(Array.isArray(out[0].hashtags));
+  assert.ok(out[0].hashtags.length > 0);
+});
+
+test('A/B planner imports results and selects winner by CTR', () => {
+  const Studio = loadStudio();
+  Studio.setAbPlannerPlan([{ id: 'var-a', label: 'A' }, { id: 'var-b', label: 'B' }], 'plan');
+  const planner = Studio.importAbPlannerResults([
+    { variantId: 'var-a', impressions: 1000, clicks: 50 },
+    { variantId: 'var-b', impressions: 1000, clicks: 70 }
+  ]);
+  assert.equal(planner.results.length, 2);
+  assert.equal(planner.selectedWinner, 'var-b');
+});
+
+test('export payloads include youtube and spotify objects', () => {
+  const Studio = loadStudio();
+  Studio.state.episode = 'Test Episode';
+  Studio.state.smartTitles = [{ title: 'Výherní název' }];
+  Studio.state.descGenerated = { youtube_description: 'YT', spotify_html: '<p>SP</p>' };
+  const out = Studio.exportChannelPayloads();
+  assert.ok(out.youtube);
+  assert.ok(out.spotify);
+  assert.equal(out.youtube.title, 'Výherní název');
+});

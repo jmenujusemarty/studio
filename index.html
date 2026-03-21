@@ -129,6 +129,9 @@
       <div class="actions"><button class="btn p" id="mineClips">Vytěžit 5 clipů</button></div>
       <div id="clipList" role="region" aria-label="Clip kandidáti"></div>
       <div id="clipsHistory" class="history-card"></div>
+      <div class="actions"><button class="btn s" id="buildClipPipeline">Postavit clip pipeline</button><button class="btn s" id="copyClipPipeline">Copy pipeline JSON</button></div>
+      <label>Clip pipeline</label>
+      <textarea id="clipPipelineOut" placeholder="Hook -> script -> caption -> hashtags"></textarea>
       <label>Thumbnail text</label><input id="thumbText" placeholder="např. TOTÁLNÍ CHAOS">
       <div class="actions"><button class="btn s" id="thumbScore">Spočítat thumbnail score</button></div>
       <div id="thumbScoreOut" class="line">Score: -</div>
@@ -165,6 +168,17 @@
         <div class="actions"><button class="btn s" id="refreshAnalytics">Načíst analytics</button><button class="btn s" id="runServerSchedulerNow">Scheduler server</button></div>
       </div>
       <div id="analyticsHubBox" class="history-card"></div>
+      <h3>A/B Test Planner</h3>
+      <label>Plán variant (JSON)</label>
+      <textarea id="abPlanInput" placeholder='[{"id":"var-a","label":"Title A","channel":"youtube","publishAt":"2026-03-22T12:00:00Z","asset":"thumb-a.png"}]'></textarea>
+      <div class="actions"><button class="btn s" id="saveAbPlan">Uložit A/B plán</button></div>
+      <label>Import výsledků (JSON)</label>
+      <textarea id="abResultsInput" placeholder='[{"variantId":"var-a","impressions":1000,"clicks":72,"watchTime":1830}]'></textarea>
+      <div class="actions"><button class="btn s" id="importAbResults">Importovat výsledky</button></div>
+      <div id="abPlannerBox" class="history-card"></div>
+      <h3>Export</h3>
+      <div class="actions"><button class="btn s" id="exportChannelPayloads">Vytvořit YouTube/Spotify payload</button><button class="btn s" id="copyChannelPayloads">Copy payload JSON</button></div>
+      <textarea id="channelPayloadOut" placeholder="YouTube payload + Spotify payload"></textarea>
     </div>
 
     <div id="settings" class="pane" role="tabpanel" aria-labelledby="tab-settings">
@@ -487,6 +501,11 @@ function renderAllHistory(){
   renderHistoryBlock('descriptions','descsHistory');
   renderHistoryBlock('clips','clipsHistory');
 }
+function renderClipPipeline(){
+  const ta=document.getElementById('clipPipelineOut');
+  if(!ta) return;
+  ta.value=JSON.stringify(Studio.state.clipPipeline||[],null,2);
+}
 function renderPublishQueue(){
   const box=document.getElementById('publishQueueList');
   const items=Studio.listPublishQueue();
@@ -534,6 +553,18 @@ function renderAnalyticsHub(){
     `<div class="line"><b>Est. CTR:</b> ${esc(String(k.estimated_ctr||0))}% · <b>Est. Retention:</b> ${esc(String(k.estimated_retention||0))}%</div>`,
     `<div class="line"><b>Avg Title Score:</b> ${esc(String(k.avg_title_score||0))}</div>`,
     `<div class="mini">${series.slice(-6).map(x=>`${esc(x.label)} CTR ${esc(String(x.ctr))}% / RET ${esc(String(x.retention))}%`).join(' | ') || 'Bez series dat.'}</div>`
+  ].join('');
+}
+function renderAbPlanner(){
+  const box=document.getElementById('abPlannerBox');
+  if(!box) return;
+  const p=Studio.state.abPlanner || {};
+  const variants=Array.isArray(p.variants)?p.variants:[];
+  const results=Array.isArray(p.results)?p.results:[];
+  box.innerHTML=[
+    `<div class="line"><b>Variants:</b> ${variants.length} · <b>Results:</b> ${results.length}</div>`,
+    p.selectedWinner ? `<div class="line"><b>Winner:</b> ${esc(p.selectedWinner)}</div>` : '<div class="mini">Winner zatím nevyhodnocen.</div>',
+    ...results.slice(0,5).map(r=>`<div class="line">${esc(r.variantId)} · CTR ${esc(String(r.ctr||0))}% · WT ${esc(String(r.watchTime||0))}</div>`)
   ].join('');
 }
 function renderMarketplace(){
@@ -830,10 +861,13 @@ window.selectP=(id)=>{
   renderOutliers();
   updateKpis();
   renderAllHistory();
+  renderClipPipeline();
   renderABBoard();
   renderPublishQueue();
   renderChannelProfile();
   renderAuditLog();
+  renderAnalyticsHub();
+  renderAbPlanner();
   setStatus('Projekt přepnut.');
 }
 window.delP=(id)=>{
@@ -846,10 +880,13 @@ window.delP=(id)=>{
   fillOutputs();
   updateKpis();
   renderAllHistory();
+  renderClipPipeline();
   renderABBoard();
   renderPublishQueue();
   renderChannelProfile();
   renderAuditLog();
+  renderAnalyticsHub();
+  renderAbPlanner();
   setStatus('Projekt byl smazán.');
 }
 
@@ -1211,6 +1248,21 @@ document.getElementById('mineClips').onclick=()=>{
     }
   });
 };
+document.getElementById('buildClipPipeline').onclick=()=>{
+  const src=(Studio.state.clips||[]).map((c,i)=>({
+    start: String(c.start || c.hook?.slice(0,5) || `00:0${i}`),
+    hook: String(c.hook || ''),
+    reason: String(c.caption || '')
+  }));
+  const out=Studio.buildClipPipelineFromClips(src);
+  renderClipPipeline();
+  setStatus(`Clip pipeline připraven (${out.length}).`);
+  renderAuditLog();
+};
+document.getElementById('copyClipPipeline').onclick=async()=>{
+  const ok=await Studio.copy(document.getElementById('clipPipelineOut').value||'[]');
+  setStatus(ok?'Clip pipeline zkopírován.':'Kopírování clip pipeline selhalo.');
+};
 document.getElementById('thumbScore').onclick=()=>{document.getElementById('thumbScoreOut').textContent='Score: '+Studio.scoreThumb(document.getElementById('thumbText').value)+'/100';};
 document.getElementById('saveSettingsTab').onclick=()=>{validatePromptFields();readSettingsTab();setStatus('Nastavení projektu uloženo.');};
 document.getElementById('syncProjectServer').onclick=()=>{
@@ -1231,10 +1283,13 @@ document.getElementById('pullProjectsServer').onclick=()=>{
     renderOutliers();
     updateKpis();
     renderAllHistory();
+    renderClipPipeline();
     renderABBoard();
     renderPublishQueue();
     renderChannelProfile();
     renderAuditLog();
+    renderAnalyticsHub();
+    renderAbPlanner();
     setStatus(`Načteno ${list.length} projektů ze serveru.`);
   });
 };
@@ -1510,6 +1565,38 @@ document.getElementById('refreshAnalytics').onclick=()=>{
     setStatus('Analytics snapshot načten.');
   });
 };
+document.getElementById('saveAbPlan').onclick=()=>{
+  try{
+    const parsed=JSON.parse(document.getElementById('abPlanInput').value||'[]');
+    Studio.setAbPlannerPlan(parsed,'saved via UI');
+    renderAbPlanner();
+    renderAuditLog();
+    setStatus('A/B plán uložen.');
+  }catch{
+    setStatus('A/B plán není validní JSON.','error');
+  }
+};
+document.getElementById('importAbResults').onclick=()=>{
+  try{
+    const parsed=JSON.parse(document.getElementById('abResultsInput').value||'[]');
+    Studio.importAbPlannerResults(parsed);
+    renderAbPlanner();
+    renderAuditLog();
+    setStatus('A/B výsledky importovány.');
+  }catch{
+    setStatus('A/B výsledky nejsou validní JSON.','error');
+  }
+};
+document.getElementById('exportChannelPayloads').onclick=()=>{
+  const payload=Studio.exportChannelPayloads();
+  document.getElementById('channelPayloadOut').value=JSON.stringify(payload,null,2);
+  renderAuditLog();
+  setStatus('YouTube/Spotify payload připraven.');
+};
+document.getElementById('copyChannelPayloads').onclick=async()=>{
+  const ok=await Studio.copy(document.getElementById('channelPayloadOut').value||'{}');
+  setStatus(ok?'Channel payload zkopírován.':'Kopírování payloadu selhalo.');
+};
 document.getElementById('recomputeProfile').onclick=()=>{
   refreshChannelProfile();
   setStatus('Channel profile přepočítán.');
@@ -1575,7 +1662,7 @@ document.addEventListener('keydown',(e)=>{
   }
 });
 
-renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderABBoard();renderPublishQueue();renderChannelProfile();renderAuditLog();renderAnalyticsHub();renderMarketplace();renderErrorPanel();
+renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderClipPipeline();renderABBoard();renderPublishQueue();renderChannelProfile();renderAuditLog();renderAnalyticsHub();renderAbPlanner();renderMarketplace();renderErrorPanel();
 {
   const m=String(location.hash||'').match(/^#settings\/([a-z-]+)/i);
   if(m){

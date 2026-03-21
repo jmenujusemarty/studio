@@ -150,6 +150,8 @@ function normalizeProjectShape(project){
   p.approval = (p.approval && typeof p.approval==='object') ? p.approval : {state:'draft', updatedAt:'', note:''};
   p.channelProfile = (p.channelProfile && typeof p.channelProfile==='object') ? p.channelProfile : {tone:'balanced', successRate:0, avgTitleScore:0, recommendations:[]};
   p.publishQueue = Array.isArray(p.publishQueue) ? p.publishQueue : [];
+  p.abPlanner = (p.abPlanner && typeof p.abPlanner==='object') ? p.abPlanner : {variants:[], results:[], selectedWinner:'', notes:''};
+  p.clipPipeline = Array.isArray(p.clipPipeline) ? p.clipPipeline : [];
   p.auditLog = Array.isArray(p.auditLog) ? p.auditLog : [];
   p.generationHistory = {
     titles: Array.isArray(p.generationHistory?.titles) ? p.generationHistory.titles : [],
@@ -171,6 +173,8 @@ const seed = {
   approval:{state:'draft',updatedAt:'',note:''},
   channelProfile:{tone:'balanced',successRate:0,avgTitleScore:0,recommendations:[]},
   publishQueue:[],
+  abPlanner:{variants:[],results:[],selectedWinner:'',notes:''},
+  clipPipeline:[],
   auditLog:[],
   generationHistory:{titles:[],descriptions:[],clips:[]},
   settings: cloneDefaultSettings()
@@ -603,6 +607,101 @@ function setApprovalState(approvalState='draft', note=''){
   addAuditEvent('approval',`Approval -> ${s}`,{note:String(note||'')});
   save();
   return {...state.approval};
+}
+function _slug(s=''){
+  return String(s||'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,'-').replace(/^-+|-+$/g,'').slice(0,60);
+}
+function buildClipPipelineFromClips(clips=[]){
+  const src=Array.isArray(clips)?clips:[];
+  const out=src.slice(0,8).map((c,idx)=>{
+    const hook=String(c.hook || c.caption || `Hook ${idx+1}`).trim();
+    const reason=String(c.reason || c.caption || '').trim();
+    const script=`${hook}. ${reason || 'Tady přijde pointa během 12-20 sekund.'}`.trim();
+    const caption=`${hook}${reason ? `\n${reason}` : ''}`;
+    const words=_safeWords(`${hook} ${reason}`).slice(0,4).map(x=>`#${_slug(x)}`).filter(Boolean);
+    const hashtags=[...new Set(['#shorts','#podcast','#erem',...words])].slice(0,8);
+    return {
+      id:`clip-${Date.now().toString(36)}-${idx}`,
+      start:String(c.start || '00:00'),
+      hook,
+      script,
+      caption,
+      hashtags
+    };
+  });
+  state.clipPipeline=out;
+  addAuditEvent('clips','Clip pipeline built',{count:out.length});
+  save();
+  return out;
+}
+function setAbPlannerPlan(variants=[], notes=''){
+  const list=Array.isArray(variants)?variants:[];
+  state.abPlanner={
+    ...(state.abPlanner||{variants:[],results:[],selectedWinner:'',notes:''}),
+    variants:list.map((v,i)=>({
+      id:String(v.id || `var-${i+1}`),
+      label:String(v.label || `Variant ${i+1}`),
+      channel:String(v.channel || 'youtube'),
+      publishAt:String(v.publishAt || ''),
+      asset:String(v.asset || '')
+    })),
+    notes:String(notes||'')
+  };
+  addAuditEvent('ab_planner','A/B plan saved',{count:state.abPlanner.variants.length});
+  save();
+  return {...state.abPlanner};
+}
+function importAbPlannerResults(results=[]){
+  const list=Array.isArray(results)?results:[];
+  const rows=list.map((r,i)=>({
+    variantId:String(r.variantId || r.id || `var-${i+1}`),
+    impressions:Number(r.impressions || 0),
+    clicks:Number(r.clicks || 0),
+    watchTime:Number(r.watchTime || 0),
+    ctr:Number(r.ctr || 0)
+  })).map(r=>{
+    const ctr = r.ctr>0 ? r.ctr : (r.impressions>0 ? (r.clicks/r.impressions)*100 : 0);
+    return {...r, ctr:Number(ctr.toFixed(2))};
+  });
+  let winner='';
+  if(rows.length){
+    winner=[...rows].sort((a,b)=>b.ctr-a.ctr || b.watchTime-a.watchTime)[0].variantId;
+  }
+  state.abPlanner={
+    ...(state.abPlanner||{variants:[],results:[],selectedWinner:'',notes:''}),
+    results:rows,
+    selectedWinner:winner
+  };
+  addAuditEvent('ab_planner','A/B results imported',{count:rows.length,winner});
+  save();
+  return {...state.abPlanner};
+}
+function exportChannelPayloads(){
+  const title=String(state.abSelections?.title || state.smartTitles?.[0]?.title || state.episode || '').trim();
+  const ytDesc=String(state.descGenerated?.youtube_description || '').trim();
+  const spHtml=String(state.descGenerated?.spotify_html || '').trim();
+  const baseTags=(state.keywords||[]).slice(0,10).map(x=>_slug(x)).filter(Boolean);
+  const youtubePayload={
+    title,
+    description: ytDesc,
+    tags: baseTags,
+    categoryId:'22',
+    privacyStatus:'private'
+  };
+  const spotifyPayload={
+    title: String(state.episode||''),
+    description_html: spHtml,
+    chapters: normalizedTimelineItems().map(x=>({time:x.ts_hms,title:x.title}))
+  };
+  const pack={
+    projectId: String(state._projectId||''),
+    generatedAt: new Date().toISOString(),
+    youtube: youtubePayload,
+    spotify: spotifyPayload
+  };
+  addAuditEvent('export','Channel payload exported',{projectId:pack.projectId});
+  save();
+  return pack;
 }
 function recomputeChannelProfile(){
   const tasks=state.settings?.promptOptimizer?.tasks || {};
@@ -1059,7 +1158,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,getMarketplaceTemplates,installMarketplaceTemplate,setApprovalState,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,getMarketplaceTemplates,installMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,importAbPlannerResults,exportChannelPayloads,setApprovalState,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)
