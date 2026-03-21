@@ -28,6 +28,7 @@ const DEFAULT_SETTINGS = {
   integrations: {
     analyticsApiUrl: './api/analytics.php',
     schedulerApiUrl: './api/scheduler.php',
+    queueApiUrl: './api/queue.php',
     youtubeChannelId: '',
     spotifyShowId: ''
   },
@@ -92,6 +93,7 @@ function ensureSettingsShape(raw){
     integrations: {
       analyticsApiUrl: String(s.integrations?.analyticsApiUrl ?? base.integrations.analyticsApiUrl),
       schedulerApiUrl: String(s.integrations?.schedulerApiUrl ?? base.integrations.schedulerApiUrl),
+      queueApiUrl: String(s.integrations?.queueApiUrl ?? base.integrations.queueApiUrl),
       youtubeChannelId: String(s.integrations?.youtubeChannelId ?? base.integrations.youtubeChannelId),
       spotifyShowId: String(s.integrations?.spotifyShowId ?? base.integrations.spotifyShowId)
     },
@@ -415,6 +417,28 @@ function getSchedulerApiUrl(){
 function getAuditApiUrl(){
   return './api/audit.php';
 }
+function getQueueApiUrl(){
+  const inSettings = String(state.settings?.integrations?.queueApiUrl || '').trim();
+  return inSettings || './api/queue.php';
+}
+async function _queueApiRequest(payloadOrQuery, method='POST', opts={}){
+  const apiUrl=(opts.apiUrl || getQueueApiUrl()).trim();
+  const apiToken=(opts.apiToken ?? getApiAccessToken()).trim();
+  const headers={'Content-Type':'application/json'};
+  if(apiToken) headers['X-API-Token']=apiToken;
+  let url=apiUrl;
+  const init={method,headers};
+  if(method==='GET'){
+    const q=payloadOrQuery && typeof payloadOrQuery==='object' ? new URLSearchParams(payloadOrQuery).toString() : '';
+    if(q) url += (url.includes('?') ? '&' : '?') + q;
+  }else{
+    init.body=JSON.stringify(payloadOrQuery || {});
+  }
+  const res=await fetch(url, init);
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok || data?.error) throw new Error(String(data?.error || `Queue API failed (${res.status})`));
+  return data;
+}
 function setProjectsApiUrl(url=''){
   const v=String(url||'').trim();
   if(v) localStorage.setItem('eremstudio_projects_api_url',v);
@@ -550,12 +574,10 @@ async function runDuePublishJobsOnServer(nowIso='', opts={}){
   const data=await res.json().catch(()=>({}));
   if(!res.ok || data?.error) throw new Error(String(data?.error || `Scheduler API failed (${res.status})`));
   const queue=Array.isArray(data?.queue) ? data.queue : [];
-  if(queue.length){
-    state.publishQueue=queue;
-    addAuditEvent('scheduler','Server scheduler run',{processed:Number(data?.processed||0)});
-    save();
-  }
-  return {processed:Number(data?.processed||0), total:Number(data?.total||queue.length)};
+  state.publishQueue=queue;
+  addAuditEvent('scheduler','Server scheduler run',{processed:Number(data?.processed||0)});
+  save();
+  return {processed:Number(data?.processed||0), total:Number(data?.total||queue.length), queue};
 }
 async function fetchAnalyticsSnapshot(range='30d', opts={}){
   const apiUrl=String(opts.apiUrl || getAnalyticsApiUrl()).trim();
@@ -797,6 +819,39 @@ function routePublishJobs(channel={}, outputs={}){
     });
   }
   return jobs;
+}
+async function enqueuePublishJobOnServer(payload={}, scheduleAt='', opts={}){
+  const data=await _queueApiRequest({
+    action:'enqueue',
+    projectId:String(state._projectId||''),
+    payload,
+    scheduleAt:String(scheduleAt || new Date().toISOString())
+  }, 'POST', opts);
+  const queue=Array.isArray(data?.queue) ? data.queue : [];
+  if(queue.length) state.publishQueue=queue;
+  addAuditEvent('publish_queue','Server enqueue',{projectId:String(state._projectId||'')});
+  save();
+  return {ok:true, queue};
+}
+async function pullPublishQueueFromServer(opts={}){
+  const data=await _queueApiRequest({projectId:String(state._projectId||'')}, 'GET', opts);
+  const queue=Array.isArray(data?.queue) ? data.queue : [];
+  state.publishQueue=queue;
+  save();
+  return queue;
+}
+async function updatePublishJobStatusOnServer(jobId, status='queued', opts={}){
+  const data=await _queueApiRequest({
+    action:'update_status',
+    projectId:String(state._projectId||''),
+    jobId:String(jobId||''),
+    status:String(status||'queued')
+  }, 'POST', opts);
+  const queue=Array.isArray(data?.queue) ? data.queue : [];
+  state.publishQueue=queue;
+  addAuditEvent('publish_queue','Server status update',{jobId:String(jobId||''), status:String(status||'queued')});
+  save();
+  return queue;
 }
 function compareVariants(kind='title', left='', right=''){
   const k=String(kind||'title');
@@ -1320,7 +1375,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,getAuditApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,fetchServerAudit,getMarketplaceTemplates,installMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,importAbPlannerResults,exportChannelPayloads,routePublishJobs,compareVariants,ingestPerformanceMetrics,setApprovalState,setApprovalPolicy,addApprovalVote,canPublishNow,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,getAuditApiUrl,getQueueApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,enqueuePublishJobOnServer,pullPublishQueueFromServer,updatePublishJobStatusOnServer,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,fetchServerAudit,getMarketplaceTemplates,installMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,importAbPlannerResults,exportChannelPayloads,routePublishJobs,compareVariants,ingestPerformanceMetrics,setApprovalState,setApprovalPolicy,addApprovalVote,canPublishNow,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)

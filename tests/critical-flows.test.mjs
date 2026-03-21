@@ -234,3 +234,10 @@ test('variant comparator returns winner and scores', () => {
   assert.equal(descCmp.ok, true);
   assert.ok(typeof descCmp.right.score === 'number');
 });
+
+test('settings shape includes queue api integration url', () => {
+  const Studio = loadStudio();
+  const s = Studio.ensureSettingsShape(Studio.defaultSettings);
+  assert.equal(typeof s.integrations.queueApiUrl, 'string');
+  assert.ok(s.integrations.queueApiUrl.includes('queue.php'));
+});

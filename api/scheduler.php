@@ -57,16 +57,31 @@ if ($action !== 'run_due') {
 $dataDir = __DIR__ . '/data';
 if (!is_dir($dataDir)) @mkdir($dataDir, 0775, true);
 $auditFile = $dataDir . '/audit-events.log';
+$queueStoreFile = $dataDir . '/queues.json';
 function append_audit(string $file, array $event): void {
   @file_put_contents($file, json_encode($event, JSON_UNESCAPED_UNICODE) . PHP_EOL, FILE_APPEND | LOCK_EX);
 }
-
-$queue = $in['queue'] ?? [];
-if (!is_array($queue)) {
-  http_response_code(400);
-  echo json_encode(['error' => 'queue must be array'], JSON_UNESCAPED_UNICODE);
-  exit;
+function read_queue_store(string $file): array {
+  if (!is_file($file)) return ['updatedAt' => gmdate('c'), 'projects' => []];
+  $raw = @file_get_contents($file);
+  if (!is_string($raw) || $raw === '') return ['updatedAt' => gmdate('c'), 'projects' => []];
+  $parsed = json_decode($raw, true);
+  if (!is_array($parsed)) return ['updatedAt' => gmdate('c'), 'projects' => []];
+  if (!isset($parsed['projects']) || !is_array($parsed['projects'])) $parsed['projects'] = [];
+  return $parsed;
 }
+function write_queue_store(string $file, array $payload): bool {
+  $payload['updatedAt'] = gmdate('c');
+  return @file_put_contents($file, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), LOCK_EX) !== false;
+}
+
+$projectId = (string)($in['projectId'] ?? '');
+$store = read_queue_store($queueStoreFile);
+$queue = $in['queue'] ?? null;
+if ($queue === null && $projectId !== '') {
+  $queue = $store['projects'][$projectId] ?? [];
+}
+if (!is_array($queue)) $queue = [];
 
 $nowRaw = (string)($in['nowIso'] ?? '');
 $now = $nowRaw !== '' ? strtotime($nowRaw) : time();
@@ -96,10 +111,15 @@ append_audit($auditFile, [
   'ts' => gmdate('c'),
   'service' => 'scheduler',
   'action' => 'run_due',
-  'projectId' => (string)($in['projectId'] ?? ''),
+  'projectId' => $projectId,
   'processed' => $processed,
   'total' => count($out)
 ]);
+
+if ($projectId !== '') {
+  $store['projects'][$projectId] = $out;
+  write_queue_store($queueStoreFile, $store);
+}
 
 echo json_encode([
   'ok' => true,

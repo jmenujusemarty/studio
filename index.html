@@ -149,6 +149,7 @@
         <div><label>Naplánovat na</label><input id="publishScheduleAt" type="datetime-local"></div>
         <div class="actions"><button class="btn s" id="enqueuePublishJob">Přidat do fronty</button><button class="btn s" id="runSchedulerNow">Spustit scheduler</button></div>
       </div>
+      <div class="actions"><button class="btn s" id="pullServerQueue">Načíst frontu ze serveru</button></div>
       <div class="actions"><button class="btn s" id="copyPublishPackage">Copy JSON</button></div>
       <h3>Channel Profile</h3>
       <div id="channelProfileBox" class="history-card"></div>
@@ -290,6 +291,7 @@
             <h3>Integrace</h3>
             <label>Analytics API URL</label><input id="setAnalyticsApiUrl" placeholder="./api/analytics.php">
             <label>Scheduler API URL</label><input id="setSchedulerApiUrl" placeholder="./api/scheduler.php">
+            <label>Queue API URL</label><input id="setQueueApiUrl" placeholder="./api/queue.php">
             <div class="row">
               <div><label>YouTube Channel ID</label><input id="setYoutubeChannelId" placeholder="UC..."></div>
               <div><label>Spotify Show ID</label><input id="setSpotifyShowId" placeholder="show-id"></div>
@@ -804,6 +806,7 @@ function renderSettingsTab(){
   document.getElementById('setTeamReviewers').value=(s.team.reviewers||[]).join(', ');
   document.getElementById('setAnalyticsApiUrl').value=s.integrations.analyticsApiUrl||'';
   document.getElementById('setSchedulerApiUrl').value=s.integrations.schedulerApiUrl||'';
+  document.getElementById('setQueueApiUrl').value=s.integrations.queueApiUrl||'';
   document.getElementById('setYoutubeChannelId').value=s.integrations.youtubeChannelId||'';
   document.getElementById('setSpotifyShowId').value=s.integrations.spotifyShowId||'';
   const t=s.promptOptimizer?.tasks||{};
@@ -844,6 +847,7 @@ function readSettingsTab(){
     integrations:{
       analyticsApiUrl:document.getElementById('setAnalyticsApiUrl').value,
       schedulerApiUrl:document.getElementById('setSchedulerApiUrl').value,
+      queueApiUrl:document.getElementById('setQueueApiUrl').value,
       youtubeChannelId:document.getElementById('setYoutubeChannelId').value,
       spotifyShowId:document.getElementById('setSpotifyShowId').value
     }
@@ -1644,6 +1648,7 @@ document.getElementById('enqueuePublishJob').onclick=()=>{
     return;
   }
   Studio.enqueuePublishJob(payload, scheduleAt);
+  Studio.enqueuePublishJobOnServer(payload, scheduleAt).catch(e=>reportError('Server queue enqueue', e, ()=>Studio.enqueuePublishJobOnServer(payload, scheduleAt)));
   renderPublishQueue();
   renderAuditLog();
   setStatus('Job přidán do publish fronty.');
@@ -1655,6 +1660,7 @@ document.getElementById('publishQueueList').addEventListener('click',(e)=>{
   const status=btn.getAttribute('data-status');
   if(!id || !status) return;
   Studio.updatePublishJobStatus(id,status);
+  Studio.updatePublishJobStatusOnServer(id,status).catch(e=>reportError('Server queue status', e, ()=>Studio.updatePublishJobStatusOnServer(id,status)));
   renderPublishQueue();
   renderAuditLog();
   setStatus(`Job ${id} -> ${status}.`);
@@ -1671,6 +1677,13 @@ document.getElementById('runServerSchedulerNow').onclick=()=>{
     renderPublishQueue();
     renderAuditLog();
     setStatus(`Server scheduler zpracoval ${out.processed} jobů.`);
+  });
+};
+document.getElementById('pullServerQueue').onclick=()=>{
+  runWithBusy('pullServerQueue', async()=>{
+    await Studio.pullPublishQueueFromServer();
+    renderPublishQueue();
+    setStatus('Fronta načtena ze serveru.');
   });
 };
 document.getElementById('refreshAnalytics').onclick=()=>{
