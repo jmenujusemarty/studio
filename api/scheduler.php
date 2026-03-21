@@ -54,6 +54,13 @@ if ($action !== 'run_due') {
   exit;
 }
 
+$dataDir = __DIR__ . '/data';
+if (!is_dir($dataDir)) @mkdir($dataDir, 0775, true);
+$auditFile = $dataDir . '/audit-events.log';
+function append_audit(string $file, array $event): void {
+  @file_put_contents($file, json_encode($event, JSON_UNESCAPED_UNICODE) . PHP_EOL, FILE_APPEND | LOCK_EX);
+}
+
 $queue = $in['queue'] ?? [];
 if (!is_array($queue)) {
   http_response_code(400);
@@ -84,6 +91,15 @@ foreach ($queue as $job) {
   }
   $out[] = $job;
 }
+
+append_audit($auditFile, [
+  'ts' => gmdate('c'),
+  'service' => 'scheduler',
+  'action' => 'run_due',
+  'projectId' => (string)($in['projectId'] ?? ''),
+  'processed' => $processed,
+  'total' => count($out)
+]);
 
 echo json_encode([
   'ok' => true,

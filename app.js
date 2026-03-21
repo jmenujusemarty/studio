@@ -21,6 +21,10 @@ const DEFAULT_SETTINGS = {
     audience: 'CZ',
     publishMode: 'manual'
   },
+  team: {
+    actor: 'owner',
+    reviewers: []
+  },
   integrations: {
     analyticsApiUrl: './api/analytics.php',
     schedulerApiUrl: './api/scheduler.php',
@@ -80,6 +84,10 @@ function ensureSettingsShape(raw){
       mode: String(s.channel?.mode ?? base.channel.mode),
       audience: String(s.channel?.audience ?? base.channel.audience),
       publishMode: String(s.channel?.publishMode ?? base.channel.publishMode)
+    },
+    team: {
+      actor: String(s.team?.actor ?? base.team.actor),
+      reviewers: Array.isArray(s.team?.reviewers) ? s.team.reviewers.map(x=>String(x)) : []
     },
     integrations: {
       analyticsApiUrl: String(s.integrations?.analyticsApiUrl ?? base.integrations.analyticsApiUrl),
@@ -147,7 +155,16 @@ function normalizeProjectShape(project){
   const p={...(project||{})};
   p.settings = ensureSettingsShape(p.settings);
   p.abSelections = (p.abSelections && typeof p.abSelections==='object') ? p.abSelections : {title:'',description:'',clip:'',thumbnail:''};
-  p.approval = (p.approval && typeof p.approval==='object') ? p.approval : {state:'draft', updatedAt:'', note:''};
+  p.approval = (p.approval && typeof p.approval==='object')
+    ? {
+      state: String(p.approval.state || 'draft'),
+      updatedAt: String(p.approval.updatedAt || ''),
+      note: String(p.approval.note || ''),
+      reviewer: String(p.approval.reviewer || ''),
+      requiredApprovals: Number(p.approval.requiredApprovals || 1),
+      votes: Array.isArray(p.approval.votes) ? p.approval.votes : []
+    }
+    : {state:'draft', updatedAt:'', note:'', reviewer:'', requiredApprovals:1, votes:[]};
   p.channelProfile = (p.channelProfile && typeof p.channelProfile==='object') ? p.channelProfile : {tone:'balanced', successRate:0, avgTitleScore:0, recommendations:[]};
   p.publishQueue = Array.isArray(p.publishQueue) ? p.publishQueue : [];
   p.abPlanner = (p.abPlanner && typeof p.abPlanner==='object') ? p.abPlanner : {variants:[], results:[], selectedWinner:'', notes:''};
@@ -170,7 +187,7 @@ const seed = {
   keywords:["erem","afterparty podcast","zrce 2025"],
   clips:[],
   abSelections:{title:'',description:'',clip:'',thumbnail:''},
-  approval:{state:'draft',updatedAt:'',note:''},
+  approval:{state:'draft',updatedAt:'',note:'',reviewer:'',requiredApprovals:1,votes:[]},
   channelProfile:{tone:'balanced',successRate:0,avgTitleScore:0,recommendations:[]},
   publishQueue:[],
   abPlanner:{variants:[],results:[],selectedWinner:'',notes:''},
@@ -454,11 +471,13 @@ function replaceAllLocalProjects(projects=[]){
   return true;
 }
 function addAuditEvent(type, message, meta={}){
+  const actor=String(state.settings?.team?.actor || 'system');
   const entry={
     id:`audit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,6)}`,
     ts:new Date().toISOString(),
     type:String(type||'event'),
     message:String(message||''),
+    actor,
     meta: JSON.parse(JSON.stringify(meta||{}))
   };
   state.auditLog=[entry, ...(state.auditLog||[])].slice(0,150);
@@ -603,10 +622,42 @@ function installMarketplaceTemplate(templateId=''){
 function setApprovalState(approvalState='draft', note=''){
   const allowed=new Set(['draft','review','approved']);
   const s=allowed.has(approvalState)?approvalState:'draft';
-  state.approval={state:s,updatedAt:new Date().toISOString(),note:String(note||'')};
+  state.approval={...(state.approval||{}),state:s,updatedAt:new Date().toISOString(),note:String(note||'')};
   addAuditEvent('approval',`Approval -> ${s}`,{note:String(note||'')});
   save();
   return {...state.approval};
+}
+function setApprovalPolicy(reviewer='', requiredApprovals=1){
+  const req=Math.max(1, Math.min(10, Number(requiredApprovals||1)));
+  state.approval={
+    ...(state.approval||{}),
+    reviewer:String(reviewer||''),
+    requiredApprovals:req,
+    updatedAt:new Date().toISOString()
+  };
+  addAuditEvent('approval','Approval policy updated',{reviewer:String(reviewer||''), requiredApprovals:req});
+  save();
+  return {...state.approval};
+}
+function addApprovalVote(actor='', decision='approve', note=''){
+  const who=String(actor || state.settings?.team?.actor || 'reviewer').trim();
+  const d=decision==='reject' ? 'reject' : 'approve';
+  const votes=Array.isArray(state.approval?.votes) ? [...state.approval.votes] : [];
+  const entry={id:`vote-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,5)}`,actor:who,decision:d,note:String(note||''),ts:new Date().toISOString()};
+  votes.unshift(entry);
+  const required=Math.max(1, Number(state.approval?.requiredApprovals || 1));
+  const approveCount=votes.filter(v=>v.decision==='approve').length;
+  const rejectCount=votes.filter(v=>v.decision==='reject').length;
+  let next='review';
+  if(rejectCount>0) next='draft';
+  if(approveCount>=required && rejectCount===0) next='approved';
+  state.approval={...(state.approval||{}), votes, state:next, updatedAt:new Date().toISOString()};
+  addAuditEvent('approval',`Vote ${d}`,{actor:who,nextState:next});
+  save();
+  return {...state.approval};
+}
+function canPublishNow(){
+  return String(state.approval?.state||'draft') === 'approved';
 }
 function _slug(s=''){
   return String(s||'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,'-').replace(/^-+|-+$/g,'').slice(0,60);
@@ -1158,7 +1209,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,getMarketplaceTemplates,installMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,importAbPlannerResults,exportChannelPayloads,setApprovalState,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,getMarketplaceTemplates,installMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,importAbPlannerResults,exportChannelPayloads,setApprovalState,setApprovalPolicy,addApprovalVote,canPublishNow,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)

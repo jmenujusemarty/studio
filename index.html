@@ -159,6 +159,12 @@
         <div><label>Stav</label><select id="approvalState"><option value="draft">draft</option><option value="review">review</option><option value="approved">approved</option></select></div>
         <div><label>Poznámka</label><input id="approvalNote" placeholder="např. čeká na review"></div>
       </div>
+      <div class="row">
+        <div><label>Reviewer</label><input id="approvalReviewer" placeholder="např. lead-editor"></div>
+        <div><label>Required approvals</label><input id="approvalRequired" type="number" min="1" max="10" step="1"></div>
+      </div>
+      <div class="actions"><button class="btn s" id="saveApprovalPolicy">Uložit approval policy</button><button class="btn s" id="voteApprove">Vote approve</button><button class="btn s" id="voteReject">Vote reject</button></div>
+      <div id="approvalVotesBox" class="history-card"></div>
       <div class="actions"><button class="btn s" id="saveApprovalState">Uložit approval stav</button></div>
       <h3>Audit Log</h3>
       <div id="auditLogList"></div>
@@ -188,6 +194,7 @@
           <button class="btn s settings-menu-btn" data-sec="skills">Skills</button>
           <button class="btn s settings-menu-btn" data-sec="algorithms">Algoritmy</button>
           <button class="btn s settings-menu-btn" data-sec="channel">Kanál</button>
+          <button class="btn s settings-menu-btn" data-sec="team">Tým</button>
           <button class="btn s settings-menu-btn" data-sec="integrations">Integrace</button>
           <button class="btn s settings-menu-btn" data-sec="marketplace">Marketplace</button>
           <button class="btn s settings-menu-btn" data-sec="presets">Presety</button>
@@ -255,6 +262,11 @@
               <button class="btn s" id="syncProjectServer">Sync projekt na server</button>
               <button class="btn s" id="pullProjectsServer">Načíst projekty ze serveru</button>
             </div>
+          </section>
+          <section class="settings-section" data-sec="team">
+            <h3>Tým</h3>
+            <label>Aktivní actor (audit)</label><input id="setTeamActor" placeholder="owner/editor">
+            <label>Revieweři (čárkou)</label><input id="setTeamReviewers" placeholder="lead-editor, producer">
           </section>
           <section class="settings-section" data-sec="integrations">
             <h3>Integrace</h3>
@@ -537,6 +549,18 @@ function renderChannelProfile(){
   const appr=Studio.state.approval || {};
   document.getElementById('approvalState').value=appr.state || 'draft';
   document.getElementById('approvalNote').value=appr.note || '';
+  document.getElementById('approvalReviewer').value=appr.reviewer || '';
+  document.getElementById('approvalRequired').value=String(appr.requiredApprovals || 1);
+}
+function renderApprovalVotes(){
+  const box=document.getElementById('approvalVotesBox');
+  if(!box) return;
+  const votes=Array.isArray(Studio.state.approval?.votes) ? Studio.state.approval.votes : [];
+  if(!votes.length){
+    box.innerHTML='<div class="mini">Žádné hlasy.</div>';
+    return;
+  }
+  box.innerHTML=votes.slice(0,8).map(v=>`<div class="line"><b>${esc(v.actor)}</b> · ${esc(v.decision)} · ${esc(new Date(v.ts).toLocaleString('cs-CZ'))}${v.note?` · ${esc(v.note)}`:''}</div>`).join('');
 }
 function renderAnalyticsHub(){
   const box=document.getElementById('analyticsHubBox');
@@ -731,6 +755,8 @@ function renderSettingsTab(){
   document.getElementById('setChannelMode').value=s.channel.mode||'both';
   document.getElementById('setAudience').value=s.channel.audience||'CZ';
   document.getElementById('setPublishMode').value=s.channel.publishMode||'manual';
+  document.getElementById('setTeamActor').value=s.team.actor||'owner';
+  document.getElementById('setTeamReviewers').value=(s.team.reviewers||[]).join(', ');
   document.getElementById('setAnalyticsApiUrl').value=s.integrations.analyticsApiUrl||'';
   document.getElementById('setSchedulerApiUrl').value=s.integrations.schedulerApiUrl||'';
   document.getElementById('setYoutubeChannelId').value=s.integrations.youtubeChannelId||'';
@@ -765,6 +791,10 @@ function readSettingsTab(){
       mode:document.getElementById('setChannelMode').value,
       audience:document.getElementById('setAudience').value,
       publishMode:document.getElementById('setPublishMode').value
+    },
+    team:{
+      actor:document.getElementById('setTeamActor').value || 'owner',
+      reviewers:document.getElementById('setTeamReviewers').value.split(',').map(x=>x.trim()).filter(Boolean)
     },
     integrations:{
       analyticsApiUrl:document.getElementById('setAnalyticsApiUrl').value,
@@ -865,6 +895,7 @@ window.selectP=(id)=>{
   renderABBoard();
   renderPublishQueue();
   renderChannelProfile();
+  renderApprovalVotes();
   renderAuditLog();
   renderAnalyticsHub();
   renderAbPlanner();
@@ -884,6 +915,7 @@ window.delP=(id)=>{
   renderABBoard();
   renderPublishQueue();
   renderChannelProfile();
+  renderApprovalVotes();
   renderAuditLog();
   renderAnalyticsHub();
   renderAbPlanner();
@@ -1287,6 +1319,7 @@ document.getElementById('pullProjectsServer').onclick=()=>{
     renderABBoard();
     renderPublishQueue();
     renderChannelProfile();
+    renderApprovalVotes();
     renderAuditLog();
     renderAnalyticsHub();
     renderAbPlanner();
@@ -1517,6 +1550,10 @@ document.getElementById('copyPublishPackage').onclick=async()=>{
   setStatus(ok?'Publish balíček zkopírován.':'Kopírování balíčku selhalo.');
 };
 document.getElementById('enqueuePublishJob').onclick=()=>{
+  if(!Studio.canPublishNow()){
+    setStatus('Publikace je blokována: approval není ve stavu approved.','warning');
+    return;
+  }
   let payload;
   try{
     payload=JSON.parse(document.getElementById('publishPackageOut').value||'{}');
@@ -1607,7 +1644,33 @@ document.getElementById('saveApprovalState').onclick=()=>{
   Studio.setApprovalState(stateVal,note);
   renderAuditLog();
   renderChannelProfile();
+  renderApprovalVotes();
   setStatus(`Approval stav uložen: ${stateVal}.`);
+};
+document.getElementById('saveApprovalPolicy').onclick=()=>{
+  const reviewer=document.getElementById('approvalReviewer').value || '';
+  const required=Number(document.getElementById('approvalRequired').value || 1);
+  Studio.setApprovalPolicy(reviewer, required);
+  renderAuditLog();
+  renderChannelProfile();
+  renderApprovalVotes();
+  setStatus('Approval policy uložena.');
+};
+document.getElementById('voteApprove').onclick=()=>{
+  const note=document.getElementById('approvalNote').value || '';
+  Studio.addApprovalVote(Studio.state.settings?.team?.actor || 'reviewer', 'approve', note);
+  renderAuditLog();
+  renderChannelProfile();
+  renderApprovalVotes();
+  setStatus('Approve hlas uložen.');
+};
+document.getElementById('voteReject').onclick=()=>{
+  const note=document.getElementById('approvalNote').value || '';
+  Studio.addApprovalVote(Studio.state.settings?.team?.actor || 'reviewer', 'reject', note);
+  renderAuditLog();
+  renderChannelProfile();
+  renderApprovalVotes();
+  setStatus('Reject hlas uložen.');
 };
 document.getElementById('errorPanel').addEventListener('click',(e)=>{
   const btn=e.target.closest('.retry-error');
@@ -1662,7 +1725,7 @@ document.addEventListener('keydown',(e)=>{
   }
 });
 
-renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderClipPipeline();renderABBoard();renderPublishQueue();renderChannelProfile();renderAuditLog();renderAnalyticsHub();renderAbPlanner();renderMarketplace();renderErrorPanel();
+renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderClipPipeline();renderABBoard();renderPublishQueue();renderChannelProfile();renderApprovalVotes();renderAuditLog();renderAnalyticsHub();renderAbPlanner();renderMarketplace();renderErrorPanel();
 {
   const m=String(location.hash||'').match(/^#settings\/([a-z-]+)/i);
   if(m){

@@ -54,6 +54,13 @@ if ($action !== 'snapshot') {
   exit;
 }
 
+$dataDir = __DIR__ . '/data';
+if (!is_dir($dataDir)) @mkdir($dataDir, 0775, true);
+$auditFile = $dataDir . '/audit-events.log';
+function append_audit(string $file, array $event): void {
+  @file_put_contents($file, json_encode($event, JSON_UNESCAPED_UNICODE) . PHP_EOL, FILE_APPEND | LOCK_EX);
+}
+
 $range = (string)($in['range'] ?? '30d');
 $hist = $in['generationHistory'] ?? [];
 if (!is_array($hist)) $hist = [];
@@ -96,6 +103,15 @@ for ($i = $days - 1; $i >= 0; $i--) {
     'retention' => round(max(10.0, min(80.0, $retention - 3 + $factor * 4)), 2)
   ];
 }
+
+append_audit($auditFile, [
+  'ts' => gmdate('c'),
+  'service' => 'analytics',
+  'action' => 'snapshot',
+  'projectId' => (string)($in['projectId'] ?? ''),
+  'range' => $range,
+  'total_generations' => $totalOps
+]);
 
 echo json_encode([
   'ok' => true,

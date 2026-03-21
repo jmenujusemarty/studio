@@ -177,3 +177,15 @@ test('export payloads include youtube and spotify objects', () => {
   assert.ok(out.spotify);
   assert.equal(out.youtube.title, 'Výherní název');
 });
+
+test('team approval policy and votes gate publishing', () => {
+  const Studio = loadStudio();
+  Studio.state.settings.team.actor = 'lead-editor';
+  Studio.setApprovalPolicy('lead-editor', 2);
+  assert.equal(Studio.canPublishNow(), false);
+
+  Studio.addApprovalVote('lead-editor', 'approve', 'looks good');
+  assert.equal(Studio.canPublishNow(), false);
+  Studio.addApprovalVote('producer', 'approve', 'approved');
+  assert.equal(Studio.canPublishNow(), true);
+});
