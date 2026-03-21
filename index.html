@@ -95,6 +95,7 @@
     <input id="apiUrlInput" placeholder="https://tvoje-api-url" />
     <p class="mini">Ukládá se do localStorage jako <code>eremstudio_codex_api_url</code>. Výchozí URL je <code>./api/openai.php</code>.</p>
     <div class="actions">
+      <button class="btn s" id="testApiUrl">Otestovat API</button>
       <button class="btn s" id="clearApiUrl">Vymazat</button>
       <button class="btn s" id="closeSettings">Zavřít</button>
       <button class="btn p" id="saveApiUrl">Uložit</button>
@@ -202,6 +203,28 @@ document.getElementById('saveApiUrl').onclick=()=>{
   const saved=Studio.setCodexApiUrl(document.getElementById('apiUrlInput').value);
   setStatus(saved ? 'API URL uložena.' : 'API URL vymazána.');
   closeSettingsModal();
+};
+document.getElementById('testApiUrl').onclick=()=>{
+  (async()=>{
+    const btn=document.getElementById('testApiUrl');
+    const before=btn.textContent;
+    btn.disabled=true;
+    btn.textContent='Testuji...';
+    try{
+      const testUrl=Studio.setCodexApiUrl(document.getElementById('apiUrlInput').value);
+      await Studio.callCodex('titles',{
+        transcript:'Test',
+        trendsKeywords:['test'],
+        audience:'CZ'
+      },{apiUrl:testUrl,temperature:0});
+      setStatus('API test OK.');
+    }catch(e){
+      setStatus('API test selhal.');
+    }finally{
+      btn.disabled=false;
+      btn.textContent=before;
+    }
+  })();
 };
 document.getElementById('clearApiUrl').onclick=()=>{
   Studio.setCodexApiUrl('');
