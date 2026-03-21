@@ -140,6 +140,20 @@
         <button class="btn s" id="resetSettingsTab">Reset default</button>
         <button class="btn p" id="saveSettingsTab">Uložit nastavení projektu</button>
       </div>
+      <h3>Presety</h3>
+      <label>Název presetu</label><input id="presetName" placeholder="např. YouTube CZ CTR">
+      <div class="actions">
+        <button class="btn s" id="savePreset">Uložit preset</button>
+        <button class="btn s" id="loadPreset">Načíst preset</button>
+        <button class="btn s" id="deletePreset">Smazat preset</button>
+      </div>
+      <label>Dostupné presety</label>
+      <select id="presetSelect"></select>
+      <div class="actions">
+        <button class="btn s" id="exportSettingsJson">Export JSON</button>
+        <input id="importSettingsFile" type="file" accept="application/json" />
+        <button class="btn s" id="importSettingsJson">Import JSON</button>
+      </div>
     </div>
   </section>
 </div></main>
@@ -165,6 +179,15 @@
 Studio.bindCore();
 const esc=(v)=>String(v??'').replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function setStatus(msg){ document.getElementById('statusMsg').textContent = msg || ''; }
+const PRESETS_KEY='eremstudio_settings_presets_v1';
+function readPresets(){ try{return JSON.parse(localStorage.getItem(PRESETS_KEY)||'{}')}catch{return {}} }
+function writePresets(v){ localStorage.setItem(PRESETS_KEY, JSON.stringify(v)); }
+function renderPresetSelect(){
+  const s=document.getElementById('presetSelect');
+  const p=readPresets();
+  const names=Object.keys(p).sort((a,b)=>a.localeCompare(b,'cs'));
+  s.innerHTML=names.length ? names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('') : "<option value=''>-- žádný preset --</option>";
+}
 function getProjectSettings(){
   Studio.state.settings = Studio.ensureSettingsShape(Studio.state.settings);
   return Studio.state.settings;
@@ -508,6 +531,64 @@ document.getElementById('resetSettingsTab').onclick=()=>{
   renderSettingsTab();
   setStatus('Nastavení vráceno na default.');
 };
+document.getElementById('savePreset').onclick=()=>{
+  const name=(document.getElementById('presetName').value||'').trim();
+  if(!name){ setStatus('Zadej název presetu.'); return; }
+  const p=readPresets();
+  p[name]=readSettingsTab();
+  writePresets(p);
+  renderPresetSelect();
+  document.getElementById('presetSelect').value=name;
+  setStatus('Preset uložen.');
+};
+document.getElementById('loadPreset').onclick=()=>{
+  const name=document.getElementById('presetSelect').value;
+  const p=readPresets();
+  if(!name || !p[name]){ setStatus('Preset nenalezen.'); return; }
+  Studio.state.settings=Studio.ensureSettingsShape(p[name]);
+  Studio.save();
+  renderSettingsTab();
+  document.getElementById('presetName').value=name;
+  setStatus('Preset načten.');
+};
+document.getElementById('deletePreset').onclick=()=>{
+  const name=document.getElementById('presetSelect').value;
+  const p=readPresets();
+  if(!name || !p[name]){ setStatus('Preset nenalezen.'); return; }
+  delete p[name];
+  writePresets(p);
+  renderPresetSelect();
+  setStatus('Preset smazán.');
+};
+document.getElementById('exportSettingsJson').onclick=()=>{
+  const payload={ settings: readSettingsTab() };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='eremstudio-settings.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus('Settings exportovány.');
+};
+document.getElementById('importSettingsJson').onclick=()=>{
+  const file=document.getElementById('importSettingsFile').files?.[0];
+  if(!file){ setStatus('Vyber JSON soubor.'); return; }
+  const fr=new FileReader();
+  fr.onload=()=>{
+    try{
+      const raw=JSON.parse(String(fr.result||'{}'));
+      const next=Studio.ensureSettingsShape(raw.settings||raw);
+      Studio.state.settings=next;
+      Studio.save();
+      renderSettingsTab();
+      setStatus('Settings importovány.');
+    }catch{
+      setStatus('Import selhal: nevalidní JSON.');
+    }
+  };
+  fr.readAsText(file);
+};
 
-renderSettingsTab();fillOutputs();renderProjects();renderOutliers();updateKpis();
+renderSettingsTab();renderPresetSelect();fillOutputs();renderProjects();renderOutliers();updateKpis();
 </script></body></html>
