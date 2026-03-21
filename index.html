@@ -154,6 +154,8 @@
         <input id="importSettingsFile" type="file" accept="application/json" />
         <button class="btn s" id="importSettingsJson">Import JSON</button>
       </div>
+      <h3>Auto Prompt Optimizer</h3>
+      <div id="optimizerStats" class="mini"></div>
     </div>
   </section>
 </div></main>
@@ -207,6 +209,13 @@ function renderSettingsTab(){
   document.getElementById('setChannelMode').value=s.channel.mode||'both';
   document.getElementById('setAudience').value=s.channel.audience||'CZ';
   document.getElementById('setPublishMode').value=s.channel.publishMode||'manual';
+  const t=s.promptOptimizer?.tasks||{};
+  const row=(name,k)=>`${name}: uses ${k?.uses||0}, ok ${k?.ok||0}, fail ${k?.fail||0}, avg ${Number(k?.avgScore||0).toFixed(1)}`;
+  document.getElementById('optimizerStats').innerHTML=[
+    row('Titles',t.titles),
+    row('Descriptions',t.descriptions),
+    row('Growth',t.growth)
+  ].map(x=>`<div>${esc(x)}</div>`).join('');
 }
 function readSettingsTab(){
   const next=Studio.ensureSettingsShape({
@@ -417,10 +426,13 @@ document.getElementById('refreshTrends').onclick=async()=>{
 };
 document.getElementById('genTitles').onclick=()=>{
   runWithBusy('genTitles', async()=>{
+    const s=readSettingsTab();
+    const ctx={trendsKeywords:Studio.state.trendSnapshot?.merged||Studio.state.keywords||[]};
+    const autoPrompt=Studio.buildAdaptivePrompt('titles', s, ctx);
+    const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
+    const manualPrompt = [s.prompts.titles||'', skillHints ? `Skills: ${skillHints}` : '', `Channel: ${s.channel.mode}, Audience: ${s.channel.audience}`].filter(Boolean).join('\n');
+    const promptOverride=[manualPrompt,autoPrompt].filter(Boolean).join('\n\n');
     try{
-      const s=readSettingsTab();
-      const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
-      const promptOverride = [s.prompts.titles||'', skillHints ? `Skills: ${skillHints}` : '', `Channel: ${s.channel.mode}, Audience: ${s.channel.audience}`].filter(Boolean).join('\n');
       const out=await Studio.generateStrategicTitles({
         transcript:Studio.state.timeline||'',
         trendsKeywords:Studio.state.trendSnapshot?.merged||Studio.state.keywords||[],
@@ -429,11 +441,15 @@ document.getElementById('genTitles').onclick=()=>{
         options:{temperature:s.algorithms.titleTemperature||0.7,apiToken:Studio.getApiAccessToken()},
         promptOverride
       });
+      Studio.state.settings=Studio.updatePromptOptimizer('titles', Studio.state.settings, ctx, {ok:true,titles:out});
+      Studio.save();
       Studio.state.smartTitles=out;Studio.state.titles=out.map(x=>x.title);Studio.save();
       document.getElementById('titleList').innerHTML=out.map((x,i)=>`<div class='line'><b>${i+1}.</b> ${esc(x.title)} · ${esc(x.category)} · ${x.score}/100</div>`).join('');
       updateKpis();
       setStatus('Strategické názvy vygenerovány přes LLM.');
     }catch(e){
+      Studio.state.settings=Studio.updatePromptOptimizer('titles', Studio.state.settings, ctx, {ok:false});
+      Studio.save();
       const out=Studio.trendDrivenTitleVariants(Studio.state.episode||'', Studio.state.timeline||'');
       Studio.state.smartTitles=out;Studio.state.titles=out.map(x=>x.title);Studio.save();
       document.getElementById('titleList').innerHTML=out.map((x,i)=>`<div class='line'><b>${i+1}.</b> ${esc(x.title)} · fallback · ${x.score}/100</div>`).join('');
@@ -445,16 +461,21 @@ document.getElementById('genTitles').onclick=()=>{
 
 document.getElementById('genDescs').onclick=()=>{
   runWithBusy('genDescs', async()=>{
+    const s=readSettingsTab();
+    const ctx={trendsKeywords:Studio.state.trendSnapshot?.merged||Studio.state.keywords||[]};
+    const autoPrompt=Studio.buildAdaptivePrompt('descriptions', s, ctx);
+    const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
+    const manualPrompt = [s.prompts.descriptions||'', skillHints ? `Skills: ${skillHints}` : '', `Channel: ${s.channel.mode}, Publish mode: ${s.channel.publishMode}`].filter(Boolean).join('\n');
+    const promptOverride=[manualPrompt,autoPrompt].filter(Boolean).join('\n\n');
     try{
-      const s=readSettingsTab();
-      const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
-      const promptOverride = [s.prompts.descriptions||'', skillHints ? `Skills: ${skillHints}` : '', `Channel: ${s.channel.mode}, Publish mode: ${s.channel.publishMode}`].filter(Boolean).join('\n');
       const out=await Studio.generateSmartDescriptions({
         timeline:Studio.state.timeline||'',
         descShort:Studio.state.desc||'',
         options:{temperature:s.algorithms.descriptionTemperature||0.5,apiToken:Studio.getApiAccessToken()},
         promptOverride
       });
+      Studio.state.settings=Studio.updatePromptOptimizer('descriptions', Studio.state.settings, ctx, {ok:true,...out});
+      Studio.save();
       if(s.channel.mode==='youtube'){
         document.getElementById('ytOut').value=out.youtube_description || Studio.ytText();
       }else if(s.channel.mode==='spotify'){
@@ -465,6 +486,8 @@ document.getElementById('genDescs').onclick=()=>{
       }
       setStatus('Popisky vygenerovány přes LLM.');
     }catch(e){
+      Studio.state.settings=Studio.updatePromptOptimizer('descriptions', Studio.state.settings, ctx, {ok:false});
+      Studio.save();
       fillOutputs();
       setStatus(`LLM popisky selhaly, použit fallback. ${e?.message||''}`.trim());
     }
@@ -473,21 +496,28 @@ document.getElementById('genDescs').onclick=()=>{
 
 document.getElementById('runRetention').onclick=()=>{
   runWithBusy('runRetention', async()=>{
+    const s=readSettingsTab();
+    const ctx={trendsKeywords:Studio.state.trendSnapshot?.merged||Studio.state.keywords||[]};
+    const autoPrompt=Studio.buildAdaptivePrompt('growth', s, ctx);
+    const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
+    const manualPrompt = [s.prompts.growth||'', skillHints ? `Skills: ${skillHints}` : '', `Channel: ${s.channel.mode}`].filter(Boolean).join('\n');
+    const promptOverride=[manualPrompt,autoPrompt].filter(Boolean).join('\n\n');
     try{
-      const s=readSettingsTab();
-      const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
-      const promptOverride = [s.prompts.growth||'', skillHints ? `Skills: ${skillHints}` : '', `Channel: ${s.channel.mode}`].filter(Boolean).join('\n');
       const out=await Studio.generateGrowthAndClips({
         transcript:Studio.state.timeline||'',
         options:{temperature:s.algorithms.growthTemperature||0.7,apiToken:Studio.getApiAccessToken()},
         promptOverride
       });
+      Studio.state.settings=Studio.updatePromptOptimizer('growth', Studio.state.settings, ctx, {ok:true,...out});
+      Studio.save();
       document.getElementById('retention').innerHTML=`<div class='line'>${esc(out.retention_tip||'')}</div>`;
       if(out.clips?.length){
         document.getElementById('clipList').innerHTML=out.clips.map(x=>`<div class='line'><b>${esc(x.start)} · ${esc(x.hook)}</b><br><span class='mini'>${esc(x.reason)}</span></div>`).join('');
       }
       setStatus('Growth analýza z LLM hotová.');
     }catch(e){
+      Studio.state.settings=Studio.updatePromptOptimizer('growth', Studio.state.settings, ctx, {ok:false});
+      Studio.save();
       document.getElementById('retention').innerHTML=Studio.retentionHints().map(x=>`<div class='line'>${esc(x)}</div>`).join('');
       setStatus(`LLM Growth selhalo, použit fallback. ${e?.message||''}`.trim());
     }
@@ -497,15 +527,20 @@ document.getElementById('runTrends').onclick=()=>{document.getElementById('kw').
 
 document.getElementById('mineClips').onclick=()=>{
   runWithBusy('mineClips', async()=>{
+    const s=readSettingsTab();
+    const ctx={trendsKeywords:Studio.state.trendSnapshot?.merged||Studio.state.keywords||[]};
+    const autoPrompt=Studio.buildAdaptivePrompt('growth', s, ctx);
+    const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
+    const manualPrompt = [s.prompts.growth||'', skillHints ? `Skills: ${skillHints}` : '', `Channel: ${s.channel.mode}`].filter(Boolean).join('\n');
+    const promptOverride=[manualPrompt,autoPrompt].filter(Boolean).join('\n\n');
     try{
-      const s=readSettingsTab();
-      const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
-      const promptOverride = [s.prompts.growth||'', skillHints ? `Skills: ${skillHints}` : '', `Channel: ${s.channel.mode}`].filter(Boolean).join('\n');
       const out=await Studio.generateGrowthAndClips({
         transcript:Studio.state.timeline||'',
         options:{temperature:s.algorithms.growthTemperature||0.7,apiToken:Studio.getApiAccessToken()},
         promptOverride
       });
+      Studio.state.settings=Studio.updatePromptOptimizer('growth', Studio.state.settings, ctx, {ok:true,...out});
+      Studio.save();
       const c=(out.clips||[]).map((x,i)=>({hook:`${x.start} · ${x.hook || ('Hook #'+(i+1))}`,caption:x.reason||''}));
       if(c.length){
         Studio.state.clips=c;Studio.save();
@@ -516,6 +551,8 @@ document.getElementById('mineClips').onclick=()=>{
       }
       throw new Error('No clips');
     }catch(e){
+      Studio.state.settings=Studio.updatePromptOptimizer('growth', Studio.state.settings, ctx, {ok:false});
+      Studio.save();
       const c=Studio.mineClips();
       document.getElementById('clipList').innerHTML=c.map(x=>`<div class='line'><b>${esc(x.hook)}</b><br><span class='mini'>${esc(x.caption)}</span></div>`).join('');
       updateKpis();

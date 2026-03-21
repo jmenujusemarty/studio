@@ -20,6 +20,14 @@ const DEFAULT_SETTINGS = {
     mode: 'both',
     audience: 'CZ',
     publishMode: 'manual'
+  },
+  promptOptimizer: {
+    enabled: true,
+    tasks: {
+      titles: {uses: 0, ok: 0, fail: 0, avgScore: 0, trendWeights: {}, lastUsedAt: ''},
+      descriptions: {uses: 0, ok: 0, fail: 0, avgScore: 0, trendWeights: {}, lastUsedAt: ''},
+      growth: {uses: 0, ok: 0, fail: 0, avgScore: 0, trendWeights: {}, lastUsedAt: ''}
+    }
   }
 };
 
@@ -50,6 +58,35 @@ function ensureSettingsShape(raw){
       mode: String(s.channel?.mode ?? base.channel.mode),
       audience: String(s.channel?.audience ?? base.channel.audience),
       publishMode: String(s.channel?.publishMode ?? base.channel.publishMode)
+    },
+    promptOptimizer: {
+      enabled: typeof s.promptOptimizer?.enabled === 'boolean' ? s.promptOptimizer.enabled : base.promptOptimizer.enabled,
+      tasks: {
+        titles: {
+          uses: Number(s.promptOptimizer?.tasks?.titles?.uses || 0),
+          ok: Number(s.promptOptimizer?.tasks?.titles?.ok || 0),
+          fail: Number(s.promptOptimizer?.tasks?.titles?.fail || 0),
+          avgScore: Number(s.promptOptimizer?.tasks?.titles?.avgScore || 0),
+          trendWeights: (s.promptOptimizer?.tasks?.titles?.trendWeights && typeof s.promptOptimizer.tasks.titles.trendWeights==='object') ? s.promptOptimizer.tasks.titles.trendWeights : {},
+          lastUsedAt: String(s.promptOptimizer?.tasks?.titles?.lastUsedAt || '')
+        },
+        descriptions: {
+          uses: Number(s.promptOptimizer?.tasks?.descriptions?.uses || 0),
+          ok: Number(s.promptOptimizer?.tasks?.descriptions?.ok || 0),
+          fail: Number(s.promptOptimizer?.tasks?.descriptions?.fail || 0),
+          avgScore: Number(s.promptOptimizer?.tasks?.descriptions?.avgScore || 0),
+          trendWeights: (s.promptOptimizer?.tasks?.descriptions?.trendWeights && typeof s.promptOptimizer.tasks.descriptions.trendWeights==='object') ? s.promptOptimizer.tasks.descriptions.trendWeights : {},
+          lastUsedAt: String(s.promptOptimizer?.tasks?.descriptions?.lastUsedAt || '')
+        },
+        growth: {
+          uses: Number(s.promptOptimizer?.tasks?.growth?.uses || 0),
+          ok: Number(s.promptOptimizer?.tasks?.growth?.ok || 0),
+          fail: Number(s.promptOptimizer?.tasks?.growth?.fail || 0),
+          avgScore: Number(s.promptOptimizer?.tasks?.growth?.avgScore || 0),
+          trendWeights: (s.promptOptimizer?.tasks?.growth?.trendWeights && typeof s.promptOptimizer.tasks.growth.trendWeights==='object') ? s.promptOptimizer.tasks.growth.trendWeights : {},
+          lastUsedAt: String(s.promptOptimizer?.tasks?.growth?.lastUsedAt || '')
+        }
+      }
     }
   };
 }
@@ -317,6 +354,77 @@ function buildGrowthPrompt({transcript=''}={}){
   ].join('\n');
 }
 
+function _avg(nums=[]){
+  const v=nums.filter(n=>Number.isFinite(Number(n))).map(Number);
+  if(!v.length) return 0;
+  return v.reduce((a,b)=>a+b,0)/v.length;
+}
+function _topWeightedKeywords(weights={}, take=6){
+  return Object.entries(weights||{})
+    .filter(([,w])=>Number.isFinite(Number(w)) && Number(w)>0)
+    .sort((a,b)=>Number(b[1])-Number(a[1]))
+    .slice(0,take)
+    .map(([k])=>k);
+}
+function _safeWords(s=''){
+  return String(s||'').toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu,' ').split(/\s+/).filter(x=>x.length>2);
+}
+function buildAdaptivePrompt(taskType, settings, context={}){
+  const s=ensureSettingsShape(settings);
+  if(!s.promptOptimizer?.enabled) return '';
+  const taskStats=s.promptOptimizer.tasks?.[taskType] || {};
+  const trendNow = (context.trendsKeywords||state.trendSnapshot?.merged||state.keywords||[]).slice(0,12).map(x=>String(x).toLowerCase());
+  const learned = _topWeightedKeywords(taskStats.trendWeights||{}, 6);
+  const merged = [...new Set([...learned,...trendNow])].slice(0,10);
+  const successRate = taskStats.uses ? Math.round((taskStats.ok/taskStats.uses)*100) : 0;
+  const quality = Math.round(Number(taskStats.avgScore||0));
+  return [
+    'AUTO OPTIMIZER (internal):',
+    `task=${taskType}; usage=${taskStats.uses||0}; success_rate=${successRate}%; quality=${quality}/100`,
+    merged.length ? `prefer_keywords=${merged.join(', ')}` : '',
+    successRate<45 ? 'increase_clarity=true; simplify_output=true; strict_json=true' : 'keep_style=true; strict_json=true'
+  ].filter(Boolean).join('\n');
+}
+function updatePromptOptimizer(taskType, settings, context={}, result={}){
+  const s=ensureSettingsShape(settings);
+  const t=s.promptOptimizer.tasks[taskType];
+  t.uses += 1;
+  t.lastUsedAt = new Date().toISOString();
+  if(result.ok) t.ok += 1; else t.fail += 1;
+
+  let score=0;
+  if(taskType==='titles'){
+    const arr=Array.isArray(result.titles)?result.titles:[];
+    score = _avg(arr.map(x=>Number(x.score||0)));
+    const trendSet=(context.trendsKeywords||[]).map(x=>String(x).toLowerCase());
+    for(const row of arr){
+      const w=_safeWords(row.title||'');
+      for(const k of trendSet){
+        if((row.title||'').toLowerCase().includes(k)){
+          t.trendWeights[k]=(Number(t.trendWeights[k]||0)+1);
+        }
+      }
+      for(const word of w){
+        if(trendSet.includes(word)) t.trendWeights[word]=(Number(t.trendWeights[word]||0)+0.5);
+      }
+    }
+  }else if(taskType==='descriptions'){
+    const ytLen=String(result.youtube_description||'').length;
+    const spLen=String(result.spotify_html||'').length;
+    score = Math.max(0, Math.min(100, Math.round((Math.min(ytLen,900)/9 + Math.min(spLen,1200)/12)/2)));
+  }else if(taskType==='growth'){
+    const clips=Array.isArray(result.clips)?result.clips:[];
+    const retentionLen=String(result.retention_tip||'').length;
+    score = Math.max(0, Math.min(100, clips.length*16 + Math.min(retentionLen,80)*0.25));
+  }
+  if(score>0){
+    const prev=t.avgScore||0;
+    const n=Math.max(1,t.ok);
+    t.avgScore = Number((prev + (score-prev)/n).toFixed(2));
+  }
+  return s;
+}
+
 async function callCodex(taskType, inputData, opts={}){
   const prompts = {
     titles: buildTitlesPrompt(inputData),
@@ -447,7 +555,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,ensureSettingsShape,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)
