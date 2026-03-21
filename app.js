@@ -142,6 +142,159 @@ function trendDrivenTitleVariants(currentTitle, transcript){
   return suggestTitlesFromTranscript(currentTitle, transcript, trend);
 }
 
+const DEFAULT_CODEX_API_URL = localStorage.getItem('eremstudio_codex_api_url') || '';
+
+function _extractJsonPayload(text=''){
+  const raw=(text||'').trim();
+  if(!raw) return null;
+  try{return JSON.parse(raw);}catch{}
+  const fenced=raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if(fenced){
+    try{return JSON.parse(fenced[1].trim());}catch{}
+  }
+  const arrStart=raw.indexOf('[');
+  const arrEnd=raw.lastIndexOf(']');
+  if(arrStart!==-1 && arrEnd>arrStart){
+    try{return JSON.parse(raw.slice(arrStart,arrEnd+1));}catch{}
+  }
+  const objStart=raw.indexOf('{');
+  const objEnd=raw.lastIndexOf('}');
+  if(objStart!==-1 && objEnd>objStart){
+    try{return JSON.parse(raw.slice(objStart,objEnd+1));}catch{}
+  }
+  return null;
+}
+
+function buildTitlesPrompt({transcript='', trendsKeywords=[], audience='CZ'}={}){
+  return [
+    'System Prompt:',
+    'Jsi YouTube Strategist s 10 lety praxe. Tvym cilem je maximalizovat CTR (miru prokliku).',
+    '',
+    'User Input:',
+    `Transcript/Obsah: ${transcript}`,
+    `Klicova slova z trendu: ${(trendsKeywords||[]).join(', ')}`,
+    `Cilove publikum: ${audience}`,
+    '',
+    'Ukol:',
+    'Vygeneruj 10 unikatnich nazvu v techto kategoriich:',
+    '- Search Optimized (SEO)',
+    '- Curiosity Gap',
+    '- The "High Stakes" Title',
+    '',
+    'Format vystupu (JSON):',
+    '[{"title":"...","category":"...","score":1-100}]'
+  ].join('\n');
+}
+
+function buildDescriptionsPrompt({timeline='', descShort=''}={}){
+  return [
+    'System Prompt:',
+    'Jsi Copywriter. Umis psat texty, ktere algoritmus YouTube miluje, ale zaroven jsou citelne pro lidi.',
+    '',
+    'User Input:',
+    `Timeline (Kapitoly): ${timeline}`,
+    `Hlavni tema: ${descShort}`,
+    '',
+    'Ukol:',
+    '1) Vytvor YouTube Description: prvni 2 radky musi prodat video, potom "O cem to je", potom Timeline a CTA.',
+    '2) Vytvor Spotify HTML: formatuj s <p>, <strong>, <ul>.',
+    'Pravidla: neprehanej emoji. Timeline zachovej presne ve formatu 00:00 Nazev.',
+    '',
+    'Format vystupu (JSON):',
+    '{"youtube_description":"...","spotify_html":"..."}'
+  ].join('\n');
+}
+
+function buildGrowthPrompt({transcript=''}={}){
+  return [
+    'System Prompt:',
+    'Jsi Viral Specialist. Tvym ukolem je najit v textu zlato pro kratka videa (Shorts/Reels).',
+    '',
+    'User Input:',
+    `Full Transcript: ${transcript}`,
+    '',
+    'Ukol:',
+    '1) Najdi 5 clip kandidatu (priblizny cas), vtipne/kontroverzni/rychla rada.',
+    '2) Pro kazdy klip navrhni Shorts hook.',
+    '3) Najdi jedno rizikove misto retence a navrhni zlepseni.',
+    '',
+    'Format vystupu (JSON):',
+    '{"clips":[{"start":"mm:ss","hook":"...","reason":"..."}],"retention_tip":"..."}'
+  ].join('\n');
+}
+
+async function callCodex(taskType, inputData, opts={}){
+  const prompts = {
+    titles: buildTitlesPrompt(inputData),
+    descriptions: buildDescriptionsPrompt(inputData),
+    growth: buildGrowthPrompt(inputData)
+  };
+  const prompt = prompts[taskType];
+  if(!prompt) throw new Error(`Unknown taskType: ${taskType}`);
+  const apiUrl = opts.apiUrl || DEFAULT_CODEX_API_URL;
+  if(!apiUrl) throw new Error('Missing API URL: nastav eremstudio_codex_api_url v localStorage.');
+
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      taskType,
+      prompt,
+      temperature: opts.temperature ?? 0.7
+    })
+  });
+  if(!response.ok){
+    throw new Error(`LLM request failed (${response.status})`);
+  }
+  const data = await response.json();
+  if(data && typeof data === 'object' && (data.clips || data.youtube_description || Array.isArray(data))){
+    return data;
+  }
+  const text = data?.text || data?.output || data?.message || '';
+  const parsed = _extractJsonPayload(text);
+  if(parsed) return parsed;
+  throw new Error('LLM response is not valid JSON payload.');
+}
+
+async function generateStrategicTitles(input={}){
+  const transcript = (input.transcript || state.timeline || '').trim();
+  const trendsKeywords = input.trendsKeywords || state.trendSnapshot?.merged || state.keywords || [];
+  const audience = input.audience || 'CZ';
+  const out = await callCodex('titles', {transcript, trendsKeywords, audience}, input.options || {});
+  if(!Array.isArray(out)) throw new Error('Titles payload must be array.');
+  return out
+    .filter(x=>x && x.title)
+    .slice(0,10)
+    .map(x=>({
+      title: String(x.title).trim(),
+      category: String(x.category || 'Curiosity Gap').trim(),
+      score: Math.max(1, Math.min(100, Number(x.score || algorithmGuardScore(String(x.title||''), trendsKeywords))))
+    }));
+}
+
+async function generateSmartDescriptions(input={}){
+  const timeline = input.timeline || normalizedTimelineItems().map(x=>`${x.ts_hms} ${x.title}`).join('\n');
+  const descShort = input.descShort || state.desc || '';
+  const out = await callCodex('descriptions', {timeline, descShort}, input.options || {});
+  if(!out || typeof out !== 'object') throw new Error('Descriptions payload must be object.');
+  return {
+    youtube_description: String(out.youtube_description || '').trim(),
+    spotify_html: String(out.spotify_html || '').trim()
+  };
+}
+
+async function generateGrowthAndClips(input={}){
+  const transcript = (input.transcript || state.timeline || '').trim();
+  const out = await callCodex('growth', {transcript}, input.options || {});
+  if(!out || typeof out !== 'object') throw new Error('Growth payload must be object.');
+  const clips = Array.isArray(out.clips) ? out.clips.slice(0,5).map(c=>({
+    start: String(c.start || '00:00'),
+    hook: String(c.hook || ''),
+    reason: String(c.reason || '')
+  })) : [];
+  return {clips, retention_tip: String(out.retention_tip || '').trim()};
+}
+
 
 
 function listProjects(){
@@ -174,7 +327,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)

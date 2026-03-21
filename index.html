@@ -62,6 +62,7 @@
     </div>
 
     <div id="descs" class="pane" role="tabpanel" aria-labelledby="tab-descs">
+      <div class="actions"><button class="btn p" id="genDescs">Vygenerovat Smart Description</button></div>
       <label>YouTube popisek</label><textarea id="ytOut"></textarea>
       <label>Spotify popisek (HTML)</label><textarea id="spOut"></textarea>
       <div class="actions"><button class="btn s" id="copyY2">Copy YouTube</button><button class="btn s" id="copyS2">Copy Spotify</button></div>
@@ -196,16 +197,75 @@ document.getElementById('refreshTrends').onclick=async()=>{
   btn.textContent=original;
 };
 document.getElementById('genTitles').onclick=()=>{
-  const out=Studio.trendDrivenTitleVariants(Studio.state.episode||'', Studio.state.timeline||'');
-  Studio.state.smartTitles=out;Studio.state.titles=out.map(x=>x.title);Studio.save();
-  document.getElementById('titleList').innerHTML=out.map((x,i)=>`<div class='line'><b>${i+1}.</b> ${esc(x.title)} · ${x.score}/100 · trend ${x.trend_fit}</div>`).join('');
-  updateKpis();
+  (async()=>{
+    try{
+      const out=await Studio.generateStrategicTitles({transcript:Studio.state.timeline||'',trendsKeywords:Studio.state.trendSnapshot?.merged||Studio.state.keywords||[],audience:'CZ'});
+      Studio.state.smartTitles=out;Studio.state.titles=out.map(x=>x.title);Studio.save();
+      document.getElementById('titleList').innerHTML=out.map((x,i)=>`<div class='line'><b>${i+1}.</b> ${esc(x.title)} · ${esc(x.category)} · ${x.score}/100</div>`).join('');
+      updateKpis();
+      setStatus('Strategické názvy vygenerovány přes LLM.');
+    }catch{
+      const out=Studio.trendDrivenTitleVariants(Studio.state.episode||'', Studio.state.timeline||'');
+      Studio.state.smartTitles=out;Studio.state.titles=out.map(x=>x.title);Studio.save();
+      document.getElementById('titleList').innerHTML=out.map((x,i)=>`<div class='line'><b>${i+1}.</b> ${esc(x.title)} · fallback · ${x.score}/100</div>`).join('');
+      updateKpis();
+      setStatus('LLM titles selhaly, použit fallback.');
+    }
+  })();
 };
 
-document.getElementById('runRetention').onclick=()=>{document.getElementById('retention').innerHTML=Studio.retentionHints().map(x=>`<div class='line'>${esc(x)}</div>`).join('');};
+document.getElementById('genDescs').onclick=()=>{
+  (async()=>{
+    try{
+      const out=await Studio.generateSmartDescriptions({timeline:Studio.state.timeline||'',descShort:Studio.state.desc||''});
+      document.getElementById('ytOut').value=out.youtube_description || Studio.ytText();
+      document.getElementById('spOut').value=out.spotify_html || Studio.spText();
+      setStatus('Popisky vygenerovány přes LLM.');
+    }catch{
+      fillOutputs();
+      setStatus('LLM popisky selhaly, použit fallback.');
+    }
+  })();
+};
+
+document.getElementById('runRetention').onclick=()=>{
+  (async()=>{
+    try{
+      const out=await Studio.generateGrowthAndClips({transcript:Studio.state.timeline||''});
+      document.getElementById('retention').innerHTML=`<div class='line'>${esc(out.retention_tip||'')}</div>`;
+      if(out.clips?.length){
+        document.getElementById('clipList').innerHTML=out.clips.map(x=>`<div class='line'><b>${esc(x.start)} · ${esc(x.hook)}</b><br><span class='mini'>${esc(x.reason)}</span></div>`).join('');
+      }
+      setStatus('Growth analýza z LLM hotová.');
+    }catch{
+      document.getElementById('retention').innerHTML=Studio.retentionHints().map(x=>`<div class='line'>${esc(x)}</div>`).join('');
+      setStatus('LLM Growth selhalo, použit fallback.');
+    }
+  })();
+};
 document.getElementById('runTrends').onclick=()=>{document.getElementById('kw').innerHTML=Studio.trendRadar().map(x=>`<div class='line'>${esc(x)}</div>`).join('');};
 
-document.getElementById('mineClips').onclick=()=>{const c=Studio.mineClips();document.getElementById('clipList').innerHTML=c.map(x=>`<div class='line'><b>${esc(x.hook)}</b><br><span class='mini'>${esc(x.caption)}</span></div>`).join('');updateKpis();};
+document.getElementById('mineClips').onclick=()=>{
+  (async()=>{
+    try{
+      const out=await Studio.generateGrowthAndClips({transcript:Studio.state.timeline||''});
+      const c=(out.clips||[]).map((x,i)=>({hook:`${x.start} · ${x.hook || ('Hook #'+(i+1))}`,caption:x.reason||''}));
+      if(c.length){
+        Studio.state.clips=c;Studio.save();
+        document.getElementById('clipList').innerHTML=c.map(x=>`<div class='line'><b>${esc(x.hook)}</b><br><span class='mini'>${esc(x.caption)}</span></div>`).join('');
+        updateKpis();
+        setStatus('Clip kandidáti vygenerováni přes LLM.');
+        return;
+      }
+      throw new Error('No clips');
+    }catch{
+      const c=Studio.mineClips();
+      document.getElementById('clipList').innerHTML=c.map(x=>`<div class='line'><b>${esc(x.hook)}</b><br><span class='mini'>${esc(x.caption)}</span></div>`).join('');
+      updateKpis();
+      setStatus('LLM clipy selhaly, použit fallback.');
+    }
+  })();
+};
 document.getElementById('thumbScore').onclick=()=>{document.getElementById('thumbScoreOut').textContent='Score: '+Studio.scoreThumb(document.getElementById('thumbText').value)+'/100';};
 
 fillOutputs();renderProjects();renderOutliers();updateKpis();
