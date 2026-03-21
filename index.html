@@ -193,6 +193,16 @@
       <h3>Export</h3>
       <div class="actions"><button class="btn s" id="exportChannelPayloads">Vytvořit YouTube/Spotify payload</button><button class="btn s" id="copyChannelPayloads">Copy payload JSON</button></div>
       <textarea id="channelPayloadOut" placeholder="YouTube payload + Spotify payload"></textarea>
+      <h3>Compare Variants</h3>
+      <div class="row">
+        <div><label>Typ</label><select id="compareKind"><option value="title">Title</option><option value="description">Description</option></select></div>
+        <div class="actions"><button class="btn s" id="compareVariantsBtn">Porovnat</button></div>
+      </div>
+      <div class="row">
+        <div><label>Levá varianta</label><textarea id="compareLeft" placeholder="Sem vlož variantu A"></textarea></div>
+        <div><label>Pravá varianta</label><textarea id="compareRight" placeholder="Sem vlož variantu B"></textarea></div>
+      </div>
+      <div id="compareOut" class="history-card"></div>
     </div>
 
     <div id="settings" class="pane" role="tabpanel" aria-labelledby="tab-settings">
@@ -1721,6 +1731,26 @@ document.getElementById('exportChannelPayloads').onclick=()=>{
 document.getElementById('copyChannelPayloads').onclick=async()=>{
   const ok=await Studio.copy(document.getElementById('channelPayloadOut').value||'{}');
   setStatus(ok?'Channel payload zkopírován.':'Kopírování payloadu selhalo.');
+};
+document.getElementById('compareVariantsBtn').onclick=()=>{
+  const kind=document.getElementById('compareKind').value || 'title';
+  const left=document.getElementById('compareLeft').value || '';
+  const right=document.getElementById('compareRight').value || '';
+  const out=Studio.compareVariants(kind,left,right);
+  const box=document.getElementById('compareOut');
+  if(!out.ok){
+    box.innerHTML='<div class="mini">Vyplň obě varianty.</div>';
+    setStatus('Porovnání selhalo: chybí text.','warning');
+    return;
+  }
+  const winner = out.winner==='tie' ? 'remíza' : (out.winner==='left' ? 'levá varianta' : 'pravá varianta');
+  box.innerHTML=[
+    `<div class="line"><b>Typ:</b> ${esc(out.kind)}</div>`,
+    `<div class="line"><b>Skóre A:</b> ${esc(String(out.left.score))} / 100</div>`,
+    `<div class="line"><b>Skóre B:</b> ${esc(String(out.right.score))} / 100</div>`,
+    `<div class="line"><b>Doporučení:</b> ${esc(winner)}</div>`
+  ].join('');
+  setStatus(`Porovnání hotovo: ${winner}.`);
 };
 document.getElementById('loadServerAudit').onclick=()=>{
   runWithBusy('loadServerAudit', async()=>{

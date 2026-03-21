@@ -222,3 +222,15 @@ test('performance ingestion updates optimizer and channel profile', () => {
   assert.ok(Studio.state.settings.promptOptimizer.tasks.titles.uses >= 1);
   assert.ok(typeof Studio.state.channelProfile.tone === 'string');
 });
+
+test('variant comparator returns winner and scores', () => {
+  const Studio = loadStudio();
+  const titleCmp = Studio.compareVariants('title', 'Největší drama týdne?', 'Update týdne');
+  assert.equal(titleCmp.ok, true);
+  assert.ok(typeof titleCmp.left.score === 'number');
+  assert.ok(['left', 'right', 'tie'].includes(titleCmp.winner));
+
+  const descCmp = Studio.compareVariants('description', 'Silný hook\nDalší řádek\nCTA', 'Krátký popis');
+  assert.equal(descCmp.ok, true);
+  assert.ok(typeof descCmp.right.score === 'number');
+});

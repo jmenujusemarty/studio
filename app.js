@@ -798,6 +798,36 @@ function routePublishJobs(channel={}, outputs={}){
   }
   return jobs;
 }
+function compareVariants(kind='title', left='', right=''){
+  const k=String(kind||'title');
+  const l=String(left||'').trim();
+  const r=String(right||'').trim();
+  if(!l || !r){
+    return {ok:false, reason:'missing values'};
+  }
+  if(k==='title'){
+    const lScore=scoreTitle(l);
+    const rScore=scoreTitle(r);
+    const winner=lScore===rScore ? 'tie' : (lScore>rScore ? 'left' : 'right');
+    return {ok:true, kind:k, left:{value:l,score:lScore}, right:{value:r,score:rScore}, winner};
+  }
+  // description compare: prefer strong opening and readable length
+  const dScore=(txt='')=>{
+    const t=String(txt||'');
+    const len=t.length;
+    let s=50;
+    if(len>=300 && len<=1400) s+=25;
+    else if(len<180) s-=15;
+    const firstTwo=t.split('\n').slice(0,2).join(' ').trim();
+    if(firstTwo.length>=40) s+=10;
+    if(/cta|subscribe|odeber|follow|klikni|link/i.test(t)) s+=8;
+    return Math.max(0,Math.min(100,s));
+  };
+  const lScore=dScore(l);
+  const rScore=dScore(r);
+  const winner=lScore===rScore ? 'tie' : (lScore>rScore ? 'left' : 'right');
+  return {ok:true, kind:k, left:{value:l,score:lScore}, right:{value:r,score:rScore}, winner};
+}
 function recomputeChannelProfile(){
   const tasks=state.settings?.promptOptimizer?.tasks || {};
   const titleAvg=Number(tasks.titles?.avgScore || 0);
@@ -1290,7 +1320,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,getAuditApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,fetchServerAudit,getMarketplaceTemplates,installMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,importAbPlannerResults,exportChannelPayloads,routePublishJobs,ingestPerformanceMetrics,setApprovalState,setApprovalPolicy,addApprovalVote,canPublishNow,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,getAuditApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,fetchServerAudit,getMarketplaceTemplates,installMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,importAbPlannerResults,exportChannelPayloads,routePublishJobs,compareVariants,ingestPerformanceMetrics,setApprovalState,setApprovalPolicy,addApprovalVote,canPublishNow,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)
