@@ -1,0 +1,212 @@
+<!doctype html><html lang="cs"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>erem Studio</title><link rel="stylesheet" href="styles.css"><style>
+.layout{display:grid;grid-template-columns:320px 1fr;gap:14px}
+@media(max-width:1020px){.layout{grid-template-columns:1fr}}
+.sticky{position:sticky;top:74px;height:fit-content}
+.mini{font-size:12px;color:#64748b}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:8px 0 12px}
+.kpi{background:rgba(255,255,255,.72);border:1px solid rgba(15,23,42,.09);border-radius:14px;padding:10px}
+.kpi .n{font-size:22px;font-weight:800}.kpi .l{font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:.08em}
+@media(max-width:900px){.kpis{grid-template-columns:1fr 1fr}}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.tab{padding:8px 12px;border-radius:999px;background:#fff;border:1px solid #dbe2ef;cursor:pointer;font-weight:600}
+.tab.active{background:rgba(0,122,255,.1);color:#007AFF}
+.pane{display:none}.pane.active{display:block}
+.project-item{padding:10px;border-bottom:1px dashed #dbe2ef}
+.project-item b{display:block;margin-bottom:3px}
+.project-item.active{background:rgba(0,122,255,.06);border-radius:10px}
+.danger{background:#fff0f0;border:1px solid #ffd3d3;color:#c9302c}
+.quick{display:grid;grid-template-columns:1fr auto;gap:8px;margin:8px 0 10px}
+.quick input{margin:0}
+</style></head><body>
+<nav class="nav"><div class="brand">erem Studio</div><a class="active" href="./">Studio</a></nav>
+<main class="wrap"><h1 class="page-title">erem Video Studio</h1><p class="page-sub">Přehledný workspace: projekty, title engine, popisky, growth i clipy na jedné stránce.</p>
+
+<div class="kpis">
+  <div class="kpi"><div class="l">projekty</div><div class="n" id="kpiProjects">0</div></div>
+  <div class="kpi"><div class="l">kapitoly</div><div class="n" id="kpiChapters">0</div></div>
+  <div class="kpi"><div class="l">title návrhy</div><div class="n" id="kpiTitles">0</div></div>
+  <div class="kpi"><div class="l">clip kandidáti</div><div class="n" id="kpiClips">0</div></div>
+</div>
+
+<div class="layout">
+  <aside class="card sticky">
+    <h2>Projekty videí</h2>
+    <p class="mini">Každé video odděleně podle URL/ID.</p>
+    <div class="quick">
+      <input id="newVideoUrl" placeholder="https://youtu.be/..." />
+      <button class="btn s" id="openVideo">Otevřít</button>
+    </div>
+    <div id="projects"></div>
+  </aside>
+
+  <section class="card">
+    <div class="tabs" role="tablist" aria-label="Sekce projektu">
+      <button class="tab active" role="tab" aria-selected="true" aria-controls="core" id="tab-core" data-pane="core">Core</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="titles" id="tab-titles" data-pane="titles">Názvy</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="descs" id="tab-descs" data-pane="descs">Popisky</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="growth" id="tab-growth" data-pane="growth">Growth</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="clips" id="tab-clips" data-pane="clips">Clipy</button>
+    </div>
+    <div id="statusMsg" class="mini" aria-live="polite"></div>
+
+    <div id="core" class="pane active" role="tabpanel" aria-labelledby="tab-core">
+      <div class="row"><div><label>Název epizody</label><input id="episode"></div><div><label>Délka</label><input id="length"></div></div>
+      <label>YouTube URL</label><input id="videoUrl"><label>Popis</label><textarea id="desc"></textarea><label>Časová osa</label><textarea id="timeline"></textarea>
+      <div class="actions"><button class="btn p" id="saveCore">Uložit projekt</button><button class="btn s" id="copyY">Copy YouTube</button><button class="btn s" id="copyS">Copy Spotify</button></div>
+    </div>
+
+    <div id="titles" class="pane" role="tabpanel" aria-labelledby="tab-titles">
+      <div class="actions"><button class="btn p" id="refreshTrends">Načíst denní trendy CZ+WORLD</button><button class="btn p" id="genTitles">Navrhnout 10 názvů</button></div>
+      <div id="trendMeta" class="line">Trend snapshot: -</div>
+      <div id="titleList"></div>
+    </div>
+
+    <div id="descs" class="pane" role="tabpanel" aria-labelledby="tab-descs">
+      <label>YouTube popisek</label><textarea id="ytOut"></textarea>
+      <label>Spotify popisek (HTML)</label><textarea id="spOut"></textarea>
+      <div class="actions"><button class="btn s" id="copyY2">Copy YouTube</button><button class="btn s" id="copyS2">Copy Spotify</button></div>
+    </div>
+
+    <div id="growth" class="pane" role="tabpanel" aria-labelledby="tab-growth">
+      <div class="actions"><button class="btn p" id="runRetention">Retention debugger</button><button class="btn p" id="runTrends">Trend radar</button></div>
+      <div id="retention"></div>
+      <div id="kw"></div>
+      <div id="outliers"></div>
+    </div>
+
+    <div id="clips" class="pane" role="tabpanel" aria-labelledby="tab-clips">
+      <div class="actions"><button class="btn p" id="mineClips">Vytěžit 5 clipů</button></div>
+      <div id="clipList"></div>
+      <label>Thumbnail text</label><input id="thumbText" placeholder="např. TOTÁLNÍ CHAOS">
+      <div class="actions"><button class="btn s" id="thumbScore">Spočítat thumbnail score</button></div>
+      <div id="thumbScoreOut" class="line">Score: -</div>
+    </div>
+  </section>
+</div></main>
+<script src="app.js"></script>
+<script>
+Studio.bindCore();
+const esc=(v)=>String(v??'').replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function setStatus(msg){ document.getElementById('statusMsg').textContent = msg || ''; }
+
+function fillOutputs(){
+  document.getElementById('ytOut').value=Studio.ytText();
+  document.getElementById('spOut').value=Studio.spText();
+}
+
+function renderProjects(){
+  const box=document.getElementById('projects');
+  const items=Studio.listProjects();
+  document.getElementById('kpiProjects').textContent=items.length;
+  box.innerHTML=items.map(v=>{
+    const active=(v.id===Studio.state._projectId)?'active':'';
+    return `<div class='project-item ${active}'><b>${esc(v.episode||'(bez názvu)')}</b><div class='mini'>${esc(v.videoUrl||v.id)}</div><div class='actions'><button class='btn s open-project' data-id='${esc(v.id)}'>Otevřít</button><button class='btn s danger del-project' data-id='${esc(v.id)}'>Smazat</button></div></div>`
+  }).join('');
+}
+window.selectP=(id)=>{
+  if(!Studio.selectProject(id)) return;
+  Studio.bindCore();
+  fillOutputs();
+  renderProjects();
+  renderOutliers();
+  updateKpis();
+  setStatus('Projekt přepnut.');
+}
+window.delP=(id)=>{
+  if(!confirm('Opravdu smazat tento projekt?')) return;
+  Studio.removeProject(id);
+  Studio.bindCore();
+  renderProjects();
+  fillOutputs();
+  updateKpis();
+  setStatus('Projekt byl smazán.');
+}
+
+function updateKpis(){
+  document.getElementById('kpiChapters').textContent=Studio.spotifyLines().length;
+  document.getElementById('kpiTitles').textContent=(Studio.state.smartTitles||Studio.state.titles||[]).length;
+  document.getElementById('kpiClips').textContent=(Studio.state.clips||[]).length;
+}
+
+function renderOutliers(){
+  document.getElementById('outliers').innerHTML=(Studio.state.outliers||[]).map(v=>`<div class='line'><b>${esc(v.title)}</b> · ${Number(v.views||0).toLocaleString('cs-CZ')} · ${esc(v.ratio)}</div>`).join('');
+}
+
+function activateTab(tab){
+  for(const t of document.querySelectorAll('.tab')){
+    t.classList.remove('active');
+    t.setAttribute('aria-selected','false');
+  }
+  for(const p of document.querySelectorAll('.pane')){
+    p.classList.remove('active');
+  }
+  tab.classList.add('active');
+  tab.setAttribute('aria-selected','true');
+  document.getElementById(tab.dataset.pane).classList.add('active');
+}
+
+for(const t of document.querySelectorAll('.tab')){
+  t.onclick=()=>{
+    activateTab(t);
+  };
+  t.onkeydown=(e)=>{
+    const tabs=[...document.querySelectorAll('.tab')];
+    const i=tabs.indexOf(t);
+    if(e.key==='ArrowRight' || e.key==='ArrowLeft'){
+      e.preventDefault();
+      const next=e.key==='ArrowRight' ? tabs[(i+1)%tabs.length] : tabs[(i-1+tabs.length)%tabs.length];
+      next.focus();
+      activateTab(next);
+    }
+  };
+}
+
+document.getElementById('projects').onclick=(e)=>{
+  const openBtn=e.target.closest('.open-project');
+  const delBtn=e.target.closest('.del-project');
+  if(openBtn) window.selectP(openBtn.dataset.id);
+  if(delBtn) window.delP(delBtn.dataset.id);
+};
+
+document.getElementById('openVideo').onclick=()=>{
+  const url=document.getElementById('newVideoUrl').value.trim();
+  if(!url) return;
+  Studio.state.videoUrl=url;
+  Studio.save();
+  document.getElementById('videoUrl').value=url;
+  document.getElementById('videoUrl').dispatchEvent(new Event('change'));
+  setStatus('Video URL nastaveno.');
+};
+
+document.getElementById('saveCore').onclick=()=>{Studio.save();renderProjects();fillOutputs();updateKpis();setStatus('Projekt uložen.');};
+document.getElementById('copyY').onclick=async()=>{const ok=await Studio.copy(Studio.ytText());setStatus(ok?'YouTube text zkopírován.':'Kopírování selhalo.');};
+document.getElementById('copyS').onclick=async()=>{const ok=await Studio.copy(Studio.spText());setStatus(ok?'Spotify text zkopírován.':'Kopírování selhalo.');};
+document.getElementById('copyY2').onclick=async()=>{const ok=await Studio.copy(document.getElementById('ytOut').value);setStatus(ok?'YouTube text zkopírován.':'Kopírování selhalo.');};
+document.getElementById('copyS2').onclick=async()=>{const ok=await Studio.copy(document.getElementById('spOut').value);setStatus(ok?'Spotify text zkopírován.':'Kopírování selhalo.');};
+
+document.getElementById('refreshTrends').onclick=async()=>{
+  const btn=document.getElementById('refreshTrends');
+  btn.disabled=true;
+  const original=btn.textContent;
+  btn.textContent='Načítám...';
+  const snap=await Studio.refreshDailyTrendData();
+  document.getElementById('trendMeta').textContent = snap ? `Trend snapshot: ${new Date(snap.date).toLocaleString('cs-CZ')} · CZ ${snap.cz.length} · WORLD ${snap.world.length}` : 'Trend snapshot: nepodařilo se načíst';
+  setStatus(snap ? 'Trendy načteny.' : 'Načtení trendů selhalo.');
+  btn.disabled=false;
+  btn.textContent=original;
+};
+document.getElementById('genTitles').onclick=()=>{
+  const out=Studio.trendDrivenTitleVariants(Studio.state.episode||'', Studio.state.timeline||'');
+  Studio.state.smartTitles=out;Studio.state.titles=out.map(x=>x.title);Studio.save();
+  document.getElementById('titleList').innerHTML=out.map((x,i)=>`<div class='line'><b>${i+1}.</b> ${esc(x.title)} · ${x.score}/100 · trend ${x.trend_fit}</div>`).join('');
+  updateKpis();
+};
+
+document.getElementById('runRetention').onclick=()=>{document.getElementById('retention').innerHTML=Studio.retentionHints().map(x=>`<div class='line'>${esc(x)}</div>`).join('');};
+document.getElementById('runTrends').onclick=()=>{document.getElementById('kw').innerHTML=Studio.trendRadar().map(x=>`<div class='line'>${esc(x)}</div>`).join('');};
+
+document.getElementById('mineClips').onclick=()=>{const c=Studio.mineClips();document.getElementById('clipList').innerHTML=c.map(x=>`<div class='line'><b>${esc(x.hook)}</b><br><span class='mini'>${esc(x.caption)}</span></div>`).join('');updateKpis();};
+document.getElementById('thumbScore').onclick=()=>{document.getElementById('thumbScoreOut').textContent='Score: '+Studio.scoreThumb(document.getElementById('thumbText').value)+'/100';};
+
+fillOutputs();renderProjects();renderOutliers();updateKpis();
+</script></body></html>
