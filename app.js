@@ -143,7 +143,7 @@ function trendDrivenTitleVariants(currentTitle, transcript){
 }
 
 function getCodexApiUrl(){
-  return (localStorage.getItem('eremstudio_codex_api_url') || '').trim();
+  return (localStorage.getItem('eremstudio_codex_api_url') || './api/openai.php').trim();
 }
 function setCodexApiUrl(url=''){
   const v=String(url||'').trim();
