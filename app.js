@@ -121,6 +121,7 @@ function ensureSettingsShape(raw){
 function normalizeProjectShape(project){
   const p={...(project||{})};
   p.settings = ensureSettingsShape(p.settings);
+  p.abSelections = (p.abSelections && typeof p.abSelections==='object') ? p.abSelections : {title:'',description:'',clip:'',thumbnail:''};
   p.generationHistory = {
     titles: Array.isArray(p.generationHistory?.titles) ? p.generationHistory.titles : [],
     descriptions: Array.isArray(p.generationHistory?.descriptions) ? p.generationHistory.descriptions : [],
@@ -137,6 +138,7 @@ const seed = {
   outliers:[{title:"ZRCE VLOG #3",views:310000,ratio:"+220%"}],
   keywords:["erem","afterparty podcast","zrce 2025"],
   clips:[],
+  abSelections:{title:'',description:'',clip:'',thumbnail:''},
   generationHistory:{titles:[],descriptions:[],clips:[]},
   settings: cloneDefaultSettings()
 };

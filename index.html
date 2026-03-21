@@ -37,7 +37,10 @@
 .settings-section{display:none}
 .settings-section.active{display:block}
 .history-card{border:1px dashed #d0d7e2;border-radius:10px;padding:8px;margin-top:10px}
+.ab-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ab-col{border:1px solid #dbe2ef;border-radius:10px;padding:8px;background:#fff}
 @media(max-width:900px){.tool-grid{grid-template-columns:1fr}}
+@media(max-width:900px){.ab-grid{grid-template-columns:1fr}}
 @media(max-width:900px){.settings-layout{grid-template-columns:1fr}.settings-nav{position:static;flex-direction:row;flex-wrap:wrap}}
 </style></head><body>
 <nav class="nav"><div class="brand">erem Studio</div><a class="active" href="./">Studio</a><button class="btn s" id="openSettings">Nastavení API</button></nav>
@@ -68,6 +71,7 @@
       <button class="tab" role="tab" aria-selected="false" aria-controls="descs" id="tab-descs" data-pane="descs">Popisky</button>
       <button class="tab" role="tab" aria-selected="false" aria-controls="growth" id="tab-growth" data-pane="growth">Growth</button>
       <button class="tab" role="tab" aria-selected="false" aria-controls="clips" id="tab-clips" data-pane="clips">Clipy</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="abpublish" id="tab-abpublish" data-pane="abpublish">A/B & Publish</button>
       <button class="tab" role="tab" aria-selected="false" aria-controls="settings" id="tab-settings" data-pane="settings">Nastavení</button>
       <button class="tab" role="tab" aria-selected="false" aria-controls="tools" id="tab-tools" data-pane="tools">Nástroje</button>
     </div>
@@ -114,6 +118,16 @@
       <label>Thumbnail text</label><input id="thumbText" placeholder="např. TOTÁLNÍ CHAOS">
       <div class="actions"><button class="btn s" id="thumbScore">Spočítat thumbnail score</button></div>
       <div id="thumbScoreOut" class="line">Score: -</div>
+    </div>
+    <div id="abpublish" class="pane" role="tabpanel" aria-labelledby="tab-abpublish">
+      <div class="actions">
+        <button class="btn p" id="buildABBoard">Postavit A/B board</button>
+        <button class="btn p" id="buildPublishPackage">Vytvořit publish balíček</button>
+      </div>
+      <div id="abBoard" class="ab-grid"></div>
+      <label>Publish balíček (JSON)</label>
+      <textarea id="publishPackageOut" placeholder="Zde se objeví one-click publish package."></textarea>
+      <div class="actions"><button class="btn s" id="copyPublishPackage">Copy JSON</button></div>
     </div>
 
     <div id="settings" class="pane" role="tabpanel" aria-labelledby="tab-settings">
@@ -374,6 +388,61 @@ function renderAllHistory(){
   renderHistoryBlock('descriptions','descsHistory');
   renderHistoryBlock('clips','clipsHistory');
 }
+function _historyTop(type){
+  return (Studio.listGenerationHistory(type)||[])[0] || null;
+}
+function buildABCandidates(){
+  const titles=(_historyTop('titles')?.payload?.items || Studio.state.smartTitles || []).slice(0,5);
+  const currentTitle=String((Studio.state.episode||'').trim());
+  const yt=String(document.getElementById('ytOut')?.value || '');
+  const sp=String(document.getElementById('spOut')?.value || '');
+  const clips=(Studio.state.clips||[]).slice(0,5);
+  const thumb=String(document.getElementById('thumbText')?.value || '');
+  return {titles,currentTitle,yt,sp,clips,thumb};
+}
+function renderABBoard(){
+  const target=document.getElementById('abBoard');
+  if(!target) return;
+  const c=buildABCandidates();
+  const titleRows=[c.currentTitle, ...c.titles.map(x=>x.title)].filter(Boolean).slice(0,4);
+  const descRows=[c.yt, c.sp].filter(Boolean).slice(0,2);
+  const clipRows=c.clips.map(x=>`${x.hook} — ${x.caption}`).slice(0,4);
+  const thumbRows=[c.thumb].filter(Boolean);
+  const card=(name,rows,key)=>`<div class="ab-col"><h4>${esc(name)}</h4>${rows.length?rows.map((r,i)=>`<div class="line">${esc(r)} <button class="btn s pick-ab" data-key="${esc(key)}" data-value="${esc(r)}">Vybrat</button></div>`).join(''):'<div class="mini">Žádné varianty</div>'}</div>`;
+  target.innerHTML=[
+    card('Titles',titleRows,'title'),
+    card('Descriptions',descRows,'description'),
+    card('Clips',clipRows,'clip'),
+    card('Thumbnail Notes',thumbRows,'thumbnail')
+  ].join('');
+}
+function buildPublishPackage(){
+  const selected=Studio.state.abSelections || {};
+  const title=selected.title || (Studio.state.smartTitles?.[0]?.title) || Studio.state.episode || '';
+  const descY=selected.description || document.getElementById('ytOut').value || Studio.ytText();
+  const descS=document.getElementById('spOut').value || Studio.spText();
+  const clips=(Studio.state.clips||[]).slice(0,5);
+  const payload={
+    generatedAt:new Date().toISOString(),
+    projectId:Studio.state._projectId,
+    episode:Studio.state.episode || '',
+    videoUrl:Studio.state.videoUrl || '',
+    channel:getProjectSettings().channel || {},
+    selected:{
+      title,
+      description:descY,
+      thumbnail: selected.thumbnail || document.getElementById('thumbText').value || '',
+      clip: selected.clip || ''
+    },
+    outputs:{
+      youtube_description:descY,
+      spotify_html:descS,
+      clips,
+      timeline:Studio.normalizedTimelineItems().map(x=>`${x.ts_hms} ${x.title}`)
+    }
+  };
+  return payload;
+}
 const ONBOARDING_KEY='eremstudio_onboarding_done_v1';
 const onboardingState={step:0};
 function openOnboarding(){
@@ -584,6 +653,7 @@ window.selectP=(id)=>{
   renderOutliers();
   updateKpis();
   renderAllHistory();
+  renderABBoard();
   setStatus('Projekt přepnut.');
 }
 window.delP=(id)=>{
@@ -595,6 +665,7 @@ window.delP=(id)=>{
   fillOutputs();
   updateKpis();
   renderAllHistory();
+  renderABBoard();
   setStatus('Projekt byl smazán.');
 }
 
@@ -1101,6 +1172,29 @@ document.getElementById('clipsHistory').addEventListener('click',(e)=>{
   updateKpis();
   setStatus('Vrácena starší verze clipů.');
 });
+document.getElementById('buildABBoard').onclick=()=>{
+  renderABBoard();
+  setStatus('A/B board připraven.');
+};
+document.getElementById('abBoard').addEventListener('click',(e)=>{
+  const btn=e.target.closest('.pick-ab');
+  if(!btn) return;
+  const key=btn.getAttribute('data-key');
+  const value=btn.getAttribute('data-value')||'';
+  if(!key) return;
+  Studio.state.abSelections={...(Studio.state.abSelections||{}), [key]: value};
+  Studio.save();
+  setStatus(`A/B výběr uložen: ${key}.`);
+});
+document.getElementById('buildPublishPackage').onclick=()=>{
+  const payload=buildPublishPackage();
+  document.getElementById('publishPackageOut').value=JSON.stringify(payload,null,2);
+  setStatus('Publish balíček připraven.');
+};
+document.getElementById('copyPublishPackage').onclick=async()=>{
+  const ok=await Studio.copy(document.getElementById('publishPackageOut').value||'');
+  setStatus(ok?'Publish balíček zkopírován.':'Kopírování balíčku selhalo.');
+};
 document.getElementById('videoUrl').addEventListener('input',()=>validateCoreInputs(false));
 document.getElementById('timeline').addEventListener('input',()=>validateCoreInputs(false));
 document.getElementById('setPromptTitles').addEventListener('input',validatePromptFields);
@@ -1113,7 +1207,7 @@ window.addEventListener('hashchange',()=>{
   activateTab(document.getElementById('tab-settings'));
 });
 
-renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();
+renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderABBoard();
 {
   const m=String(location.hash||'').match(/^#settings\/([a-z-]+)/i);
   if(m){
