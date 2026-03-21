@@ -136,6 +136,11 @@ const seed = {
 };
 const STORAGE_KEY='eremstudio_store_v3';
 function parseVideoId(url=''){const m=url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{6,})/);return m?m[1]:(url.trim().replace(/[^a-zA-Z0-9]+/g,'-').slice(0,40)||'untitled')}
+function isValidVideoUrl(url=''){
+  const u=String(url||'').trim();
+  if(!u) return false;
+  return /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[A-Za-z0-9_-]{6,}/i.test(u);
+}
 function readStore(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}')}catch{return {}}}
 function writeStore(s){localStorage.setItem(STORAGE_KEY,JSON.stringify(s))}
 function ensureStore(){
@@ -175,6 +180,31 @@ function _parseTs(raw){
     return {h:0,mi,se,total:mi*60+se};
   }
   return null;
+}
+function validateTimelineText(timeline=''){
+  const raw=String(timeline||'');
+  const lines=raw.split('\n').map(x=>x.trim()).filter(Boolean);
+  if(!lines.length) return {ok:false, errors:['Timeline je prázdná.'], lineErrors:[]};
+  const lineErrors=[];
+  lines.forEach((line, idx)=>{
+    const m=line.match(/^(\d{1,2}:\d{2}(?::\d{2})?)\s+(.+)$/);
+    if(!m){
+      lineErrors.push({line:idx+1, reason:'Neplatný formát. Použij např. 00:12 Název kapitoly.'});
+      return;
+    }
+    if(!_parseTs(m[1])){
+      lineErrors.push({line:idx+1, reason:'Neplatný timestamp.'});
+      return;
+    }
+    if(!m[2].trim()){
+      lineErrors.push({line:idx+1, reason:'Chybí název kapitoly.'});
+    }
+  });
+  return {
+    ok: lineErrors.length===0,
+    errors: lineErrors.length ? ['Některé řádky timeline nejsou ve správném formátu.'] : [],
+    lineErrors
+  };
 }
 
 function _fmtHMS(h,mi,se){
@@ -640,7 +670,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,isValidVideoUrl,validateTimelineText,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)

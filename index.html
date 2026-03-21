@@ -25,6 +25,12 @@
 .tool-card{border:1px solid #dbe2ef;border-radius:12px;padding:10px;background:#fff}
 .tool-card h4{margin-bottom:4px}
 .tool-meta{font-size:12px;color:#64748b}
+.field-error{font-size:12px;color:#b42318;margin-top:4px}
+.field-hint{font-size:12px;color:#667085;margin-top:4px}
+.progress-wrap{display:none;margin-top:8px}
+.progress-wrap.active{display:block}
+.progress-track{height:8px;border-radius:999px;background:#e5e7eb;overflow:hidden}
+.progress-bar{height:100%;width:0;background:#007AFF;transition:width .25s ease}
 @media(max-width:900px){.tool-grid{grid-template-columns:1fr}}
 </style></head><body>
 <nav class="nav"><div class="brand">erem Studio</div><a class="active" href="./">Studio</a><button class="btn s" id="openSettings">Nastavení API</button></nav>
@@ -59,10 +65,16 @@
       <button class="tab" role="tab" aria-selected="false" aria-controls="tools" id="tab-tools" data-pane="tools">Nástroje</button>
     </div>
     <div id="statusMsg" class="mini" aria-live="polite"></div>
+    <div id="progressWrap" class="progress-wrap" aria-live="polite">
+      <div id="progressText" class="mini"></div>
+      <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
+    </div>
 
     <div id="core" class="pane active" role="tabpanel" aria-labelledby="tab-core">
       <div class="row"><div><label>Název epizody</label><input id="episode"></div><div><label>Délka</label><input id="length"></div></div>
-      <label>YouTube URL</label><input id="videoUrl"><label>Popis</label><textarea id="desc"></textarea><label>Časová osa</label><textarea id="timeline"></textarea>
+      <label>YouTube URL</label><input id="videoUrl"><div id="videoUrlErr" class="field-error"></div>
+      <label>Popis</label><textarea id="desc"></textarea>
+      <label>Časová osa</label><textarea id="timeline"></textarea><div id="timelineErr" class="field-error"></div>
       <div class="actions"><button class="btn p" id="saveCore">Uložit projekt</button><button class="btn s" id="copyY">Copy YouTube</button><button class="btn s" id="copyS">Copy Spotify</button></div>
     </div>
 
@@ -97,8 +109,11 @@
     <div id="settings" class="pane" role="tabpanel" aria-labelledby="tab-settings">
       <h3>Prompty</h3>
       <label>Titles prompt override</label><textarea id="setPromptTitles" placeholder="Volitelné. Přepíše default prompt pro názvy."></textarea>
+      <div id="setPromptTitlesErr" class="field-hint"></div>
       <label>Description prompt override</label><textarea id="setPromptDescriptions" placeholder="Volitelné. Přepíše default prompt pro popisky."></textarea>
+      <div id="setPromptDescriptionsErr" class="field-hint"></div>
       <label>Growth prompt override</label><textarea id="setPromptGrowth" placeholder="Volitelné. Přepíše default prompt pro growth/clipy."></textarea>
+      <div id="setPromptGrowthErr" class="field-hint"></div>
 
       <h3>Skills</h3>
       <div class="actions">
@@ -218,11 +233,144 @@
     </div>
   </div>
 </div>
+<div class="modal-bg" id="onboardingModalBg" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
+    <h3 id="onboardingTitle">Rychlý onboarding</h3>
+    <div id="onboardingStepLabel" class="mini"></div>
+    <div id="onboardingBody"></div>
+    <div class="actions">
+      <button class="btn s" id="onboardingSkip">Přeskočit</button>
+      <button class="btn s" id="onboardingBack">Zpět</button>
+      <button class="btn p" id="onboardingNext">Další</button>
+    </div>
+  </div>
+</div>
 <script src="app.js"></script>
 <script>
 Studio.bindCore();
 const esc=(v)=>String(v??'').replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function setStatus(msg){ document.getElementById('statusMsg').textContent = msg || ''; }
+function setProgress(active=false, text='', step=0, total=0){
+  const wrap=document.getElementById('progressWrap');
+  const bar=document.getElementById('progressBar');
+  const txt=document.getElementById('progressText');
+  if(!active){
+    wrap.classList.remove('active');
+    bar.style.width='0%';
+    txt.textContent='';
+    return;
+  }
+  wrap.classList.add('active');
+  const pct=total>0 ? Math.max(0, Math.min(100, Math.round((step/total)*100))) : 0;
+  bar.style.width=`${pct}%`;
+  txt.textContent=text || `Probíhá krok ${step}/${total}`;
+}
+function validateCoreInputs(show=true){
+  const url=(document.getElementById('videoUrl').value||'').trim();
+  const timeline=(document.getElementById('timeline').value||'').trim();
+  const urlErr=document.getElementById('videoUrlErr');
+  const timelineErr=document.getElementById('timelineErr');
+  let ok=true;
+  if(!Studio.isValidVideoUrl(url)){
+    if(show) urlErr.textContent='Neplatná YouTube URL. Použij např. https://youtu.be/...';
+    ok=false;
+  }else{
+    urlErr.textContent='';
+  }
+  const tv=Studio.validateTimelineText(timeline);
+  if(!tv.ok){
+    if(show){
+      const first=tv.lineErrors[0];
+      timelineErr.textContent=first ? `Řádek ${first.line}: ${first.reason}` : (tv.errors[0]||'Timeline je nevalidní.');
+    }
+    ok=false;
+  }else{
+    timelineErr.textContent='';
+  }
+  return ok;
+}
+function validatePromptField(id, errId){
+  const v=(document.getElementById(id).value||'').trim();
+  const el=document.getElementById(errId);
+  if(!v){
+    el.textContent='Prázdné pole = použije se default prompt.';
+    return true;
+  }
+  if(v.length<40){
+    el.textContent='Prompt je velmi krátký. Zvaž konkrétnější instrukce.';
+    return true;
+  }
+  el.textContent='Vlastní prompt je aktivní.';
+  return true;
+}
+function validatePromptFields(){
+  validatePromptField('setPromptTitles','setPromptTitlesErr');
+  validatePromptField('setPromptDescriptions','setPromptDescriptionsErr');
+  validatePromptField('setPromptGrowth','setPromptGrowthErr');
+}
+const ONBOARDING_KEY='eremstudio_onboarding_done_v1';
+const onboardingState={step:0};
+function openOnboarding(){
+  const bg=document.getElementById('onboardingModalBg');
+  bg.style.display='flex';
+  bg.setAttribute('aria-hidden','false');
+  renderOnboardingStep();
+}
+function closeOnboarding(done=true){
+  const bg=document.getElementById('onboardingModalBg');
+  bg.style.display='none';
+  bg.setAttribute('aria-hidden','true');
+  if(done) localStorage.setItem(ONBOARDING_KEY,'1');
+}
+function renderOnboardingStep(){
+  const step=onboardingState.step;
+  const label=document.getElementById('onboardingStepLabel');
+  const body=document.getElementById('onboardingBody');
+  const next=document.getElementById('onboardingNext');
+  const back=document.getElementById('onboardingBack');
+  back.disabled=step===0;
+  if(step===0){
+    label.textContent='Krok 1/3 · Vlož URL videa';
+    body.innerHTML='<p>Vlož YouTube URL a otevři projekt.</p><input id="onbVideoUrl" placeholder="https://youtu.be/...">';
+    next.textContent='Další';
+    return;
+  }
+  if(step===1){
+    label.textContent='Krok 2/3 · Doplň timeline';
+    body.innerHTML='<p>Vlož kapitoly. Formát: <code>00:00 Název</code></p><textarea id="onbTimeline" placeholder="00:00 Úvod"></textarea>';
+    next.textContent='Další';
+    return;
+  }
+  label.textContent='Krok 3/3 · Vygeneruj první výstup';
+  body.innerHTML='<p>Kliknutím rovnou spustíš generování názvů podle zadaných dat.</p>';
+  next.textContent='Spustit a dokončit';
+}
+function onboardingNextStep(){
+  const step=onboardingState.step;
+  if(step===0){
+    const v=(document.getElementById('onbVideoUrl')?.value||'').trim();
+    if(!Studio.isValidVideoUrl(v)){ setStatus('Onboarding: neplatná URL videa.'); return; }
+    document.getElementById('newVideoUrl').value=v;
+    document.getElementById('videoUrl').value=v;
+    document.getElementById('openVideo').click();
+    onboardingState.step=1;
+    renderOnboardingStep();
+    return;
+  }
+  if(step===1){
+    const t=(document.getElementById('onbTimeline')?.value||'').trim();
+    const tv=Studio.validateTimelineText(t);
+    if(!tv.ok){ setStatus('Onboarding: timeline není ve správném formátu.'); return; }
+    document.getElementById('timeline').value=t;
+    document.getElementById('saveCore').click();
+    onboardingState.step=2;
+    renderOnboardingStep();
+    return;
+  }
+  closeOnboarding(true);
+  activateTab(document.getElementById('tab-titles'));
+  document.getElementById('genTitles').click();
+}
 const PRESETS_KEY='eremstudio_settings_presets_v1';
 function readPresets(){ try{return JSON.parse(localStorage.getItem(PRESETS_KEY)||'{}')}catch{return {}} }
 function writePresets(v){ localStorage.setItem(PRESETS_KEY, JSON.stringify(v)); }
@@ -470,6 +618,15 @@ document.getElementById('clearApiUrl').onclick=()=>{
 document.getElementById('settingsModalBg').onclick=(e)=>{
   if(e.target.id==='settingsModalBg') closeSettingsModal();
 };
+document.getElementById('onboardingModalBg').onclick=(e)=>{
+  if(e.target.id==='onboardingModalBg') closeOnboarding(false);
+};
+document.getElementById('onboardingSkip').onclick=()=>closeOnboarding(true);
+document.getElementById('onboardingBack').onclick=()=>{
+  onboardingState.step=Math.max(0,onboardingState.step-1);
+  renderOnboardingStep();
+};
+document.getElementById('onboardingNext').onclick=onboardingNextStep;
 
 document.getElementById('openVideo').onclick=()=>{
   const url=document.getElementById('newVideoUrl').value.trim();
@@ -492,10 +649,14 @@ async function runWithBusy(buttonId, fn){
   }finally{
     btn.disabled=false;
     btn.textContent=txt;
+    setTimeout(()=>setProgress(false),300);
   }
 }
 
-document.getElementById('saveCore').onclick=()=>{Studio.save();renderProjects();fillOutputs();updateKpis();setStatus('Projekt uložen.');};
+document.getElementById('saveCore').onclick=()=>{
+  if(!validateCoreInputs(true)){ setStatus('Oprav validaci URL/timeline.'); return; }
+  Studio.save();renderProjects();fillOutputs();updateKpis();setStatus('Projekt uložen.');
+};
 document.getElementById('copyY').onclick=async()=>{const ok=await Studio.copy(Studio.ytText());setStatus(ok?'YouTube text zkopírován.':'Kopírování selhalo.');};
 document.getElementById('copyS').onclick=async()=>{const ok=await Studio.copy(Studio.spText());setStatus(ok?'Spotify text zkopírován.':'Kopírování selhalo.');};
 document.getElementById('copyY2').onclick=async()=>{const ok=await Studio.copy(document.getElementById('ytOut').value);setStatus(ok?'YouTube text zkopírován.':'Kopírování selhalo.');};
@@ -514,13 +675,16 @@ document.getElementById('refreshTrends').onclick=async()=>{
 };
 document.getElementById('genTitles').onclick=()=>{
   runWithBusy('genTitles', async()=>{
+    if(!validateCoreInputs(true)){ setStatus('Nejdřív oprav URL nebo timeline.'); return; }
     const s=readSettingsTab();
     const ctx={trendsKeywords:Studio.state.trendSnapshot?.merged||Studio.state.keywords||[]};
+    setProgress(true,'Titles: validace vstupu',1,4);
     const autoPrompt=Studio.buildAdaptivePrompt('titles', s, ctx);
     const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
     const manualPrompt = [s.prompts.titles||'', skillHints ? `Skills: ${skillHints}` : '', `Channel: ${s.channel.mode}, Audience: ${s.channel.audience}`].filter(Boolean).join('\n');
     const promptOverride=[manualPrompt,autoPrompt].filter(Boolean).join('\n\n');
     try{
+      setProgress(true,'Titles: volám LLM',2,4);
       const out=await Studio.generateStrategicTitles({
         transcript:Studio.state.timeline||'',
         trendsKeywords:Studio.state.trendSnapshot?.merged||Studio.state.keywords||[],
@@ -529,19 +693,23 @@ document.getElementById('genTitles').onclick=()=>{
         options:{temperature:s.algorithms.titleTemperature||0.7,apiToken:Studio.getApiAccessToken()},
         promptOverride
       });
+      setProgress(true,'Titles: ukládám výsledky',3,4);
       Studio.state.settings=Studio.updatePromptOptimizer('titles', Studio.state.settings, ctx, {ok:true,titles:out});
       Studio.save();
       Studio.state.smartTitles=out;Studio.state.titles=out.map(x=>x.title);Studio.save();
       document.getElementById('titleList').innerHTML=out.map((x,i)=>`<div class='line'><b>${i+1}.</b> ${esc(x.title)} · ${esc(x.category)} · ${x.score}/100</div>`).join('');
       updateKpis();
+      setProgress(true,'Titles: hotovo',4,4);
       setStatus('Strategické názvy vygenerovány přes LLM.');
     }catch(e){
+      setProgress(true,'Titles: fallback',3,4);
       Studio.state.settings=Studio.updatePromptOptimizer('titles', Studio.state.settings, ctx, {ok:false});
       Studio.save();
       const out=Studio.trendDrivenTitleVariants(Studio.state.episode||'', Studio.state.timeline||'');
       Studio.state.smartTitles=out;Studio.state.titles=out.map(x=>x.title);Studio.save();
       document.getElementById('titleList').innerHTML=out.map((x,i)=>`<div class='line'><b>${i+1}.</b> ${esc(x.title)} · fallback · ${x.score}/100</div>`).join('');
       updateKpis();
+      setProgress(true,'Titles: fallback hotov',4,4);
       setStatus(`LLM titles selhaly, použit fallback. ${e?.message||''}`.trim());
     }
   });
@@ -549,13 +717,16 @@ document.getElementById('genTitles').onclick=()=>{
 
 document.getElementById('genDescs').onclick=()=>{
   runWithBusy('genDescs', async()=>{
+    if(!validateCoreInputs(true)){ setStatus('Nejdřív oprav URL nebo timeline.'); return; }
     const s=readSettingsTab();
     const ctx={trendsKeywords:Studio.state.trendSnapshot?.merged||Studio.state.keywords||[]};
+    setProgress(true,'Popisky: validace vstupu',1,4);
     const autoPrompt=Studio.buildAdaptivePrompt('descriptions', s, ctx);
     const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
     const manualPrompt = [s.prompts.descriptions||'', skillHints ? `Skills: ${skillHints}` : '', `Channel: ${s.channel.mode}, Publish mode: ${s.channel.publishMode}`].filter(Boolean).join('\n');
     const promptOverride=[manualPrompt,autoPrompt].filter(Boolean).join('\n\n');
     try{
+      setProgress(true,'Popisky: volám LLM',2,4);
       const out=await Studio.generateSmartDescriptions({
         timeline:Studio.state.timeline||'',
         descShort:Studio.state.desc||'',
@@ -564,6 +735,7 @@ document.getElementById('genDescs').onclick=()=>{
       });
       Studio.state.settings=Studio.updatePromptOptimizer('descriptions', Studio.state.settings, ctx, {ok:true,...out});
       Studio.save();
+      setProgress(true,'Popisky: renderuji výstupy',3,4);
       if(s.channel.mode==='youtube'){
         document.getElementById('ytOut').value=out.youtube_description || Studio.ytText();
       }else if(s.channel.mode==='spotify'){
@@ -572,11 +744,14 @@ document.getElementById('genDescs').onclick=()=>{
         document.getElementById('ytOut').value=out.youtube_description || Studio.ytText();
         document.getElementById('spOut').value=out.spotify_html || Studio.spText();
       }
+      setProgress(true,'Popisky: hotovo',4,4);
       setStatus('Popisky vygenerovány přes LLM.');
     }catch(e){
+      setProgress(true,'Popisky: fallback',3,4);
       Studio.state.settings=Studio.updatePromptOptimizer('descriptions', Studio.state.settings, ctx, {ok:false});
       Studio.save();
       fillOutputs();
+      setProgress(true,'Popisky: fallback hotov',4,4);
       setStatus(`LLM popisky selhaly, použit fallback. ${e?.message||''}`.trim());
     }
   });
@@ -584,13 +759,16 @@ document.getElementById('genDescs').onclick=()=>{
 
 document.getElementById('runRetention').onclick=()=>{
   runWithBusy('runRetention', async()=>{
+    if(!validateCoreInputs(true)){ setStatus('Nejdřív oprav URL nebo timeline.'); return; }
     const s=readSettingsTab();
     const ctx={trendsKeywords:Studio.state.trendSnapshot?.merged||Studio.state.keywords||[]};
+    setProgress(true,'Growth: validace vstupu',1,4);
     const autoPrompt=Studio.buildAdaptivePrompt('growth', s, ctx);
     const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
     const manualPrompt = [s.prompts.growth||'', skillHints ? `Skills: ${skillHints}` : '', `Channel: ${s.channel.mode}`].filter(Boolean).join('\n');
     const promptOverride=[manualPrompt,autoPrompt].filter(Boolean).join('\n\n');
     try{
+      setProgress(true,'Growth: volám LLM',2,4);
       const out=await Studio.generateGrowthAndClips({
         transcript:Studio.state.timeline||'',
         options:{temperature:s.algorithms.growthTemperature||0.7,apiToken:Studio.getApiAccessToken()},
@@ -598,15 +776,19 @@ document.getElementById('runRetention').onclick=()=>{
       });
       Studio.state.settings=Studio.updatePromptOptimizer('growth', Studio.state.settings, ctx, {ok:true,...out});
       Studio.save();
+      setProgress(true,'Growth: renderuji výstupy',3,4);
       document.getElementById('retention').innerHTML=`<div class='line'>${esc(out.retention_tip||'')}</div>`;
       if(out.clips?.length){
         document.getElementById('clipList').innerHTML=out.clips.map(x=>`<div class='line'><b>${esc(x.start)} · ${esc(x.hook)}</b><br><span class='mini'>${esc(x.reason)}</span></div>`).join('');
       }
+      setProgress(true,'Growth: hotovo',4,4);
       setStatus('Growth analýza z LLM hotová.');
     }catch(e){
+      setProgress(true,'Growth: fallback',3,4);
       Studio.state.settings=Studio.updatePromptOptimizer('growth', Studio.state.settings, ctx, {ok:false});
       Studio.save();
       document.getElementById('retention').innerHTML=Studio.retentionHints().map(x=>`<div class='line'>${esc(x)}</div>`).join('');
+      setProgress(true,'Growth: fallback hotov',4,4);
       setStatus(`LLM Growth selhalo, použit fallback. ${e?.message||''}`.trim());
     }
   });
@@ -615,13 +797,16 @@ document.getElementById('runTrends').onclick=()=>{document.getElementById('kw').
 
 document.getElementById('mineClips').onclick=()=>{
   runWithBusy('mineClips', async()=>{
+    if(!validateCoreInputs(true)){ setStatus('Nejdřív oprav URL nebo timeline.'); return; }
     const s=readSettingsTab();
     const ctx={trendsKeywords:Studio.state.trendSnapshot?.merged||Studio.state.keywords||[]};
+    setProgress(true,'Clipy: validace vstupu',1,4);
     const autoPrompt=Studio.buildAdaptivePrompt('growth', s, ctx);
     const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
     const manualPrompt = [s.prompts.growth||'', skillHints ? `Skills: ${skillHints}` : '', `Channel: ${s.channel.mode}`].filter(Boolean).join('\n');
     const promptOverride=[manualPrompt,autoPrompt].filter(Boolean).join('\n\n');
     try{
+      setProgress(true,'Clipy: volám LLM',2,4);
       const out=await Studio.generateGrowthAndClips({
         transcript:Studio.state.timeline||'',
         options:{temperature:s.algorithms.growthTemperature||0.7,apiToken:Studio.getApiAccessToken()},
@@ -631,25 +816,29 @@ document.getElementById('mineClips').onclick=()=>{
       Studio.save();
       const c=(out.clips||[]).map((x,i)=>({hook:`${x.start} · ${x.hook || ('Hook #'+(i+1))}`,caption:x.reason||''}));
       if(c.length){
+        setProgress(true,'Clipy: renderuji výstupy',3,4);
         Studio.state.clips=c;Studio.save();
         document.getElementById('clipList').innerHTML=c.map(x=>`<div class='line'><b>${esc(x.hook)}</b><br><span class='mini'>${esc(x.caption)}</span></div>`).join('');
         updateKpis();
+        setProgress(true,'Clipy: hotovo',4,4);
         setStatus('Clip kandidáti vygenerováni přes LLM.');
         return;
       }
       throw new Error('No clips');
     }catch(e){
+      setProgress(true,'Clipy: fallback',3,4);
       Studio.state.settings=Studio.updatePromptOptimizer('growth', Studio.state.settings, ctx, {ok:false});
       Studio.save();
       const c=Studio.mineClips();
       document.getElementById('clipList').innerHTML=c.map(x=>`<div class='line'><b>${esc(x.hook)}</b><br><span class='mini'>${esc(x.caption)}</span></div>`).join('');
       updateKpis();
+      setProgress(true,'Clipy: fallback hotov',4,4);
       setStatus(`LLM clipy selhaly, použit fallback. ${e?.message||''}`.trim());
     }
   });
 };
 document.getElementById('thumbScore').onclick=()=>{document.getElementById('thumbScoreOut').textContent='Score: '+Studio.scoreThumb(document.getElementById('thumbText').value)+'/100';};
-document.getElementById('saveSettingsTab').onclick=()=>{readSettingsTab();setStatus('Nastavení projektu uloženo.');};
+document.getElementById('saveSettingsTab').onclick=()=>{validatePromptFields();readSettingsTab();setStatus('Nastavení projektu uloženo.');};
 document.getElementById('resetSettingsTab').onclick=()=>{
   Studio.state.settings=Studio.ensureSettingsShape(Studio.defaultSettings);
   Studio.save();
@@ -796,6 +985,12 @@ document.getElementById('toolCatalog').onclick=(e)=>{
   renderToolCatalog();
   setStatus(`Kontrakt uložen pro ${toolId}.`);
 };
+document.getElementById('videoUrl').addEventListener('input',()=>validateCoreInputs(false));
+document.getElementById('timeline').addEventListener('input',()=>validateCoreInputs(false));
+document.getElementById('setPromptTitles').addEventListener('input',validatePromptFields);
+document.getElementById('setPromptDescriptions').addEventListener('input',validatePromptFields);
+document.getElementById('setPromptGrowth').addEventListener('input',validatePromptFields);
 
-renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();
+renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);
+if(!localStorage.getItem(ONBOARDING_KEY)) openOnboarding();
 </script></body></html>
