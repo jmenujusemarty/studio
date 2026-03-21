@@ -37,6 +37,15 @@ const DEFAULT_SETTINGS = {
 function cloneDefaultSettings(){
   return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
 }
+function normalizeToolContract(raw){
+  const c = (raw && typeof raw === 'object') ? raw : {};
+  return {
+    inputSchema: String(c.inputSchema || ''),
+    outputSchema: String(c.outputSchema || ''),
+    handler: String(c.handler || ''),
+    version: String(c.version || 'v1')
+  };
+}
 function ensureSettingsShape(raw){
   const base=cloneDefaultSettings();
   const s = (raw && typeof raw === 'object') ? raw : {};
@@ -102,7 +111,8 @@ function ensureSettingsShape(raw){
             status: String(t.status || 'planned'),
             description: String(t.description || ''),
             inputs: String(t.inputs || ''),
-            outputs: String(t.outputs || '')
+            outputs: String(t.outputs || ''),
+            contract: normalizeToolContract(t.contract)
           }))
         : []
     }
@@ -373,16 +383,16 @@ function buildGrowthPrompt({transcript=''}={}){
 }
 function getBaseToolRegistry(){
   return [
-    {id:'core-projects',name:'Project Manager',group:'Core',status:'implemented',description:'Správa projektů podle URL/ID s lokálním úložištěm.',inputs:'video URL, metadata',outputs:'project state'},
-    {id:'core-descriptions',name:'Smart Description',group:'Core',status:'implemented',description:'Generování YouTube/Spotify textů s LLM fallbackem.',inputs:'timeline, desc',outputs:'youtube text, spotify html'},
-    {id:'growth-scout',name:'Growth & Clips Scout',group:'Growth',status:'implemented',description:'Hledání clip kandidátů a retention tipů.',inputs:'transcript/timeline',outputs:'clips, retention tip'},
-    {id:'titles-engine',name:'Strategic Titles Engine',group:'Titles',status:'implemented',description:'Návrhy title variant podle strategií CTR.',inputs:'transcript, trends',outputs:'title variants'},
-    {id:'trend-ingest',name:'Trend Ingestor',group:'Discovery',status:'implemented',description:'Načítání trend keywordů (CZ/US).',inputs:'RSS feeds',outputs:'trend snapshot'},
-    {id:'thumbnail-lab',name:'Thumbnail Lab',group:'Creative',status:'implemented',description:'Skórování thumbnail textu.',inputs:'thumb text',outputs:'score'},
-    {id:'publish-router',name:'Publish Router',group:'Distribution',status:'planned',description:'Směrování výstupů dle channel mode a publish mode.',inputs:'channel settings',outputs:'publish payload'},
-    {id:'ab-lab',name:'A/B Experiment Lab',group:'Experiments',status:'planned',description:'Testovací varianty title/thumbnail/description.',inputs:'variants',outputs:'winner recommendation'},
-    {id:'analytics-hub',name:'Analytics Hub',group:'Analytics',status:'planned',description:'Konsolidace výkonových metrik napříč platformami.',inputs:'platform metrics',outputs:'kpi dashboard'},
-    {id:'automation-engine',name:'Automation Engine',group:'Automation',status:'planned',description:'Plánované dávky a trigger-based workflow.',inputs:'schedule, triggers',outputs:'executed jobs'}
+    {id:'core-projects',name:'Project Manager',group:'Core',status:'implemented',description:'Správa projektů podle URL/ID s lokálním úložištěm.',inputs:'video URL, metadata',outputs:'project state',contract:normalizeToolContract({inputSchema:'{"videoUrl":"string","metadata":"object"}',outputSchema:'{"projectId":"string","state":"object"}',handler:'local.projectManager'})},
+    {id:'core-descriptions',name:'Smart Description',group:'Core',status:'implemented',description:'Generování YouTube/Spotify textů s LLM fallbackem.',inputs:'timeline, desc',outputs:'youtube text, spotify html',contract:normalizeToolContract({inputSchema:'{"timeline":"string","descShort":"string"}',outputSchema:'{"youtube_description":"string","spotify_html":"string"}',handler:'llm.smartDescription'})},
+    {id:'growth-scout',name:'Growth & Clips Scout',group:'Growth',status:'implemented',description:'Hledání clip kandidátů a retention tipů.',inputs:'transcript/timeline',outputs:'clips, retention tip',contract:normalizeToolContract({inputSchema:'{"transcript":"string"}',outputSchema:'{"clips":"array","retention_tip":"string"}',handler:'llm.growthScout'})},
+    {id:'titles-engine',name:'Strategic Titles Engine',group:'Titles',status:'implemented',description:'Návrhy title variant podle strategií CTR.',inputs:'transcript, trends',outputs:'title variants',contract:normalizeToolContract({inputSchema:'{"transcript":"string","trends":"array"}',outputSchema:'{"titles":"array"}',handler:'llm.titlesEngine'})},
+    {id:'trend-ingest',name:'Trend Ingestor',group:'Discovery',status:'implemented',description:'Načítání trend keywordů (CZ/US).',inputs:'RSS feeds',outputs:'trend snapshot',contract:normalizeToolContract({inputSchema:'{"feeds":"array"}',outputSchema:'{"keywords":"array","updatedAt":"string"}',handler:'system.trendIngest'})},
+    {id:'thumbnail-lab',name:'Thumbnail Lab',group:'Creative',status:'implemented',description:'Skórování thumbnail textu.',inputs:'thumb text',outputs:'score',contract:normalizeToolContract({inputSchema:'{"thumbText":"string"}',outputSchema:'{"score":"number"}',handler:'local.thumbnailScore'})},
+    {id:'publish-router',name:'Publish Router',group:'Distribution',status:'planned',description:'Směrování výstupů dle channel mode a publish mode.',inputs:'channel settings',outputs:'publish payload',contract:normalizeToolContract({inputSchema:'{"channel":"object","payload":"object"}',outputSchema:'{"jobs":"array"}',handler:'pipeline.publishRouter'})},
+    {id:'ab-lab',name:'A/B Experiment Lab',group:'Experiments',status:'planned',description:'Testovací varianty title/thumbnail/description.',inputs:'variants',outputs:'winner recommendation',contract:normalizeToolContract({inputSchema:'{"variants":"array","metric":"string"}',outputSchema:'{"winner":"object","confidence":"number"}',handler:'pipeline.abLab'})},
+    {id:'analytics-hub',name:'Analytics Hub',group:'Analytics',status:'planned',description:'Konsolidace výkonových metrik napříč platformami.',inputs:'platform metrics',outputs:'kpi dashboard',contract:normalizeToolContract({inputSchema:'{"sources":"array","range":"string"}',outputSchema:'{"kpi":"object","series":"array"}',handler:'pipeline.analyticsHub'})},
+    {id:'automation-engine',name:'Automation Engine',group:'Automation',status:'planned',description:'Plánované dávky a trigger-based workflow.',inputs:'schedule, triggers',outputs:'executed jobs',contract:normalizeToolContract({inputSchema:'{"schedule":"object","triggers":"array"}',outputSchema:'{"runs":"array"}',handler:'pipeline.automationEngine'})}
   ];
 }
 function getMergedToolRegistry(settings){
@@ -403,9 +413,29 @@ function addCustomToolToSettings(settings, toolInput={}){
     status:String(toolInput.status || 'planned'),
     description:String(toolInput.description || ''),
     inputs:String(toolInput.inputs || ''),
-    outputs:String(toolInput.outputs || '')
+    outputs:String(toolInput.outputs || ''),
+    contract: normalizeToolContract(toolInput.contract)
   };
   s.tooling.customTools = [...(s.tooling.customTools||[]), tool];
+  return s;
+}
+function upsertToolContractInSettings(settings, toolId, contractInput={}){
+  const s=ensureSettingsShape(settings);
+  const id=String(toolId||'').trim();
+  if(!id) return s;
+  const contract=normalizeToolContract(contractInput);
+  const idx=(s.tooling.customTools||[]).findIndex(t=>t.id===id);
+  if(idx>=0){
+    const next=[...(s.tooling.customTools||[])];
+    next[idx]={...next[idx], contract};
+    s.tooling.customTools=next;
+    return s;
+  }
+  const base=getBaseToolRegistry().find(t=>t.id===id);
+  if(base){
+    const shadow={...base, contract};
+    s.tooling.customTools=[...(s.tooling.customTools||[]), shadow];
+  }
   return s;
 }
 
@@ -610,7 +640,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)

@@ -191,6 +191,12 @@
       </div>
       <label>Outputy</label><input id="newToolOutputs" placeholder="např. publish jobs, sync report">
       <label>Popis</label><textarea id="newToolDescription" placeholder="Co nástroj dělá a proč je důležitý."></textarea>
+      <label>Contract Input Schema (JSON)</label><textarea id="newToolInputSchema" placeholder='{"transcript":"string"}'></textarea>
+      <label>Contract Output Schema (JSON)</label><textarea id="newToolOutputSchema" placeholder='{"titles":"array"}'></textarea>
+      <div class="row">
+        <div><label>Handler</label><input id="newToolHandler" placeholder="např. llm.customTool"></div>
+        <div><label>Verze</label><input id="newToolVersion" placeholder="v1"></div>
+      </div>
       <div class="actions"><button class="btn p" id="addToolScaffold">Přidat do registry</button></div>
     </div>
   </section>
@@ -306,7 +312,26 @@ function renderToolGroupFilter(){
 function renderToolCatalog(){
   renderToolGroupFilter();
   const list=getToolsFiltered();
-  document.getElementById('toolCatalog').innerHTML=list.map(t=>`<div class='tool-card'><h4>${esc(t.name)}</h4><div class='tool-meta'>${esc(t.group)} · ${esc(t.status)}</div><div>${esc(t.description)}</div><div class='mini'>In: ${esc(t.inputs||'-')}</div><div class='mini'>Out: ${esc(t.outputs||'-')}</div></div>`).join('');
+  document.getElementById('toolCatalog').innerHTML=list.map(t=>{
+    const c=t.contract||{};
+    return `<div class='tool-card'>
+      <h4>${esc(t.name)}</h4>
+      <div class='tool-meta'>${esc(t.group)} · ${esc(t.status)}</div>
+      <div>${esc(t.description)}</div>
+      <div class='mini'>In: ${esc(t.inputs||'-')}</div>
+      <div class='mini'>Out: ${esc(t.outputs||'-')}</div>
+      <div class='mini' style='margin-top:8px'>Contract</div>
+      <label class='mini'>Input schema</label>
+      <textarea class="tool-contract-input" data-tool-id="${esc(t.id)}" placeholder='{"input":"type"}'>${esc(c.inputSchema||'')}</textarea>
+      <label class='mini'>Output schema</label>
+      <textarea class="tool-contract-output" data-tool-id="${esc(t.id)}" placeholder='{"output":"type"}'>${esc(c.outputSchema||'')}</textarea>
+      <div class='row'>
+        <div><label class='mini'>Handler</label><input class="tool-contract-handler" data-tool-id="${esc(t.id)}" value="${esc(c.handler||'')}" placeholder="llm.toolName"></div>
+        <div><label class='mini'>Verze</label><input class="tool-contract-version" data-tool-id="${esc(t.id)}" value="${esc(c.version||'v1')}" placeholder="v1"></div>
+      </div>
+      <div class='actions'><button class='btn s save-tool-contract' data-tool-id="${esc(t.id)}">Uložit kontrakt</button></div>
+    </div>`;
+  }).join('');
 }
 function openSettingsModal(){
   const bg=document.getElementById('settingsModalBg');
@@ -742,11 +767,34 @@ document.getElementById('addToolScaffold').onclick=()=>{
   const inputs=(document.getElementById('newToolInputs').value||'').trim();
   const outputs=(document.getElementById('newToolOutputs').value||'').trim();
   const description=(document.getElementById('newToolDescription').value||'').trim();
+  const inputSchema=(document.getElementById('newToolInputSchema').value||'').trim();
+  const outputSchema=(document.getElementById('newToolOutputSchema').value||'').trim();
+  const handler=(document.getElementById('newToolHandler').value||'').trim();
+  const version=(document.getElementById('newToolVersion').value||'').trim() || 'v1';
   const s=getProjectSettings();
-  Studio.state.settings = Studio.addCustomToolToSettings(s,{name,group,status,inputs,outputs,description});
+  Studio.state.settings = Studio.addCustomToolToSettings(s,{
+    name,group,status,inputs,outputs,description,
+    contract:{inputSchema,outputSchema,handler,version}
+  });
   Studio.save();
   renderToolCatalog();
   setStatus('Tool scaffold přidán do registry.');
+};
+document.getElementById('toolCatalog').onclick=(e)=>{
+  const btn=e.target.closest('.save-tool-contract');
+  if(!btn) return;
+  const toolId=btn.getAttribute('data-tool-id');
+  if(!toolId) return;
+  const root=document.getElementById('toolCatalog');
+  const inputSchema=(root.querySelector(`.tool-contract-input[data-tool-id="${toolId}"]`)?.value||'').trim();
+  const outputSchema=(root.querySelector(`.tool-contract-output[data-tool-id="${toolId}"]`)?.value||'').trim();
+  const handler=(root.querySelector(`.tool-contract-handler[data-tool-id="${toolId}"]`)?.value||'').trim();
+  const version=(root.querySelector(`.tool-contract-version[data-tool-id="${toolId}"]`)?.value||'').trim() || 'v1';
+  const s=getProjectSettings();
+  Studio.state.settings=Studio.upsertToolContractInSettings(s,toolId,{inputSchema,outputSchema,handler,version});
+  Studio.save();
+  renderToolCatalog();
+  setStatus(`Kontrakt uložen pro ${toolId}.`);
 };
 
 renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();
