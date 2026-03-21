@@ -252,7 +252,9 @@ async function callCodex(taskType, inputData, opts={}){
     })
   });
   if(!response.ok){
-    throw new Error(`LLM request failed (${response.status})`);
+    let body='';
+    try{ body = await response.text(); }catch{}
+    throw new Error(`LLM request failed (${response.status})${body ? `: ${body}` : ''}`);
   }
   const data = await response.json();
   if(data && typeof data === 'object' && (data.clips || data.youtube_description || Array.isArray(data))){

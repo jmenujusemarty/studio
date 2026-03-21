@@ -94,6 +94,7 @@
     <label for="apiUrlInput">API URL</label>
     <input id="apiUrlInput" placeholder="https://tvoje-api-url" />
     <p class="mini">Ukládá se do localStorage jako <code>eremstudio_codex_api_url</code>. Výchozí URL je <code>./api/openai.php</code>.</p>
+    <div id="apiTestDetail" class="mini"></div>
     <div class="actions">
       <button class="btn s" id="testApiUrl">Otestovat API</button>
       <button class="btn s" id="clearApiUrl">Vymazat</button>
@@ -110,6 +111,7 @@ function setStatus(msg){ document.getElementById('statusMsg').textContent = msg 
 function openSettingsModal(){
   const bg=document.getElementById('settingsModalBg');
   document.getElementById('apiUrlInput').value=Studio.getCodexApiUrl();
+  document.getElementById('apiTestDetail').textContent='';
   bg.style.display='flex';
   bg.setAttribute('aria-hidden','false');
 }
@@ -218,8 +220,10 @@ document.getElementById('testApiUrl').onclick=()=>{
         audience:'CZ'
       },{apiUrl:testUrl,temperature:0});
       setStatus('API test OK.');
+      document.getElementById('apiTestDetail').textContent='Spojení funguje.';
     }catch(e){
       setStatus('API test selhal.');
+      document.getElementById('apiTestDetail').textContent=(e && e.message) ? e.message : 'Neznámá chyba.';
     }finally{
       btn.disabled=false;
       btn.textContent=before;
