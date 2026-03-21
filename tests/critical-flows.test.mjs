@@ -106,3 +106,16 @@ test('publish queue and audit log helpers work', () => {
   assert.ok(audit.length >= 2);
   assert.ok(audit.some((x) => x.message.includes('Job queued')));
 });
+
+test('scheduler processes due queued jobs', () => {
+  const Studio = loadStudio();
+  const past = new Date(Date.now() - 60000).toISOString();
+  const future = new Date(Date.now() + 60 * 60000).toISOString();
+  const j1 = Studio.enqueuePublishJob({ id: 1 }, past);
+  Studio.enqueuePublishJob({ id: 2 }, future);
+  const result = Studio.runDuePublishJobs(new Date().toISOString());
+  assert.equal(result.processed, 1);
+  const q = Studio.listPublishQueue();
+  const a = q.find((x) => x.id === j1.id);
+  assert.equal(a.status, 'done');
+});

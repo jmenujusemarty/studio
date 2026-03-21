@@ -143,7 +143,7 @@
       <textarea id="publishPackageOut" placeholder="Zde se objeví one-click publish package."></textarea>
       <div class="row">
         <div><label>Naplánovat na</label><input id="publishScheduleAt" type="datetime-local"></div>
-        <div class="actions"><button class="btn s" id="enqueuePublishJob">Přidat do fronty</button></div>
+        <div class="actions"><button class="btn s" id="enqueuePublishJob">Přidat do fronty</button><button class="btn s" id="runSchedulerNow">Spustit scheduler</button></div>
       </div>
       <div class="actions"><button class="btn s" id="copyPublishPackage">Copy JSON</button></div>
       <h3>Publish Queue</h3>
@@ -1381,6 +1381,12 @@ document.getElementById('publishQueueList').addEventListener('click',(e)=>{
   renderAuditLog();
   setStatus(`Job ${id} -> ${status}.`);
 });
+document.getElementById('runSchedulerNow').onclick=()=>{
+  const out=Studio.runDuePublishJobs();
+  renderPublishQueue();
+  renderAuditLog();
+  setStatus(`Scheduler zpracoval ${out.processed} jobů.`);
+};
 document.getElementById('errorPanel').addEventListener('click',(e)=>{
   const btn=e.target.closest('.retry-error');
   if(!btn) return;
