@@ -142,7 +142,15 @@ function trendDrivenTitleVariants(currentTitle, transcript){
   return suggestTitlesFromTranscript(currentTitle, transcript, trend);
 }
 
-const DEFAULT_CODEX_API_URL = localStorage.getItem('eremstudio_codex_api_url') || '';
+function getCodexApiUrl(){
+  return (localStorage.getItem('eremstudio_codex_api_url') || '').trim();
+}
+function setCodexApiUrl(url=''){
+  const v=String(url||'').trim();
+  if(v) localStorage.setItem('eremstudio_codex_api_url',v);
+  else localStorage.removeItem('eremstudio_codex_api_url');
+  return getCodexApiUrl();
+}
 
 function _extractJsonPayload(text=''){
   const raw=(text||'').trim();
@@ -231,7 +239,7 @@ async function callCodex(taskType, inputData, opts={}){
   };
   const prompt = prompts[taskType];
   if(!prompt) throw new Error(`Unknown taskType: ${taskType}`);
-  const apiUrl = opts.apiUrl || DEFAULT_CODEX_API_URL;
+  const apiUrl = opts.apiUrl || getCodexApiUrl();
   if(!apiUrl) throw new Error('Missing API URL: nastav eremstudio_codex_api_url v localStorage.');
 
   const response = await fetch(apiUrl, {
@@ -327,7 +335,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)

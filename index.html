@@ -17,8 +17,12 @@
 .danger{background:#fff0f0;border:1px solid #ffd3d3;color:#c9302c}
 .quick{display:grid;grid-template-columns:1fr auto;gap:8px;margin:8px 0 10px}
 .quick input{margin:0}
+.modal-bg{position:fixed;inset:0;background:rgba(2,6,23,.35);display:none;align-items:center;justify-content:center;z-index:90}
+.modal{width:min(560px,92vw);background:#fff;border:1px solid #dbe2ef;border-radius:14px;padding:14px}
+.modal h3{margin-bottom:8px}
+.modal .actions{justify-content:flex-end}
 </style></head><body>
-<nav class="nav"><div class="brand">erem Studio</div><a class="active" href="./">Studio</a></nav>
+<nav class="nav"><div class="brand">erem Studio</div><a class="active" href="./">Studio</a><button class="btn s" id="openSettings">Nastavení API</button></nav>
 <main class="wrap"><h1 class="page-title">erem Video Studio</h1><p class="page-sub">Přehledný workspace: projekty, title engine, popisky, growth i clipy na jedné stránce.</p>
 
 <div class="kpis">
@@ -84,11 +88,35 @@
     </div>
   </section>
 </div></main>
+<div class="modal-bg" id="settingsModalBg" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <h3 id="settingsTitle">LLM API nastavení</h3>
+    <label for="apiUrlInput">API URL</label>
+    <input id="apiUrlInput" placeholder="https://tvoje-api-url" />
+    <p class="mini">Ukládá se do localStorage jako <code>eremstudio_codex_api_url</code>.</p>
+    <div class="actions">
+      <button class="btn s" id="clearApiUrl">Vymazat</button>
+      <button class="btn s" id="closeSettings">Zavřít</button>
+      <button class="btn p" id="saveApiUrl">Uložit</button>
+    </div>
+  </div>
+</div>
 <script src="app.js"></script>
 <script>
 Studio.bindCore();
 const esc=(v)=>String(v??'').replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function setStatus(msg){ document.getElementById('statusMsg').textContent = msg || ''; }
+function openSettingsModal(){
+  const bg=document.getElementById('settingsModalBg');
+  document.getElementById('apiUrlInput').value=Studio.getCodexApiUrl();
+  bg.style.display='flex';
+  bg.setAttribute('aria-hidden','false');
+}
+function closeSettingsModal(){
+  const bg=document.getElementById('settingsModalBg');
+  bg.style.display='none';
+  bg.setAttribute('aria-hidden','true');
+}
 
 function fillOutputs(){
   document.getElementById('ytOut').value=Studio.ytText();
@@ -167,6 +195,21 @@ document.getElementById('projects').onclick=(e)=>{
   const delBtn=e.target.closest('.del-project');
   if(openBtn) window.selectP(openBtn.dataset.id);
   if(delBtn) window.delP(delBtn.dataset.id);
+};
+document.getElementById('openSettings').onclick=openSettingsModal;
+document.getElementById('closeSettings').onclick=closeSettingsModal;
+document.getElementById('saveApiUrl').onclick=()=>{
+  const saved=Studio.setCodexApiUrl(document.getElementById('apiUrlInput').value);
+  setStatus(saved ? 'API URL uložena.' : 'API URL vymazána.');
+  closeSettingsModal();
+};
+document.getElementById('clearApiUrl').onclick=()=>{
+  Studio.setCodexApiUrl('');
+  document.getElementById('apiUrlInput').value='';
+  setStatus('API URL vymazána.');
+};
+document.getElementById('settingsModalBg').onclick=(e)=>{
+  if(e.target.id==='settingsModalBg') closeSettingsModal();
 };
 
 document.getElementById('openVideo').onclick=()=>{
