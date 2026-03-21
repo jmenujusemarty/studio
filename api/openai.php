@@ -21,7 +21,8 @@ if (is_file($configPath)) {
 }
 
 $apiKey = getenv('OPENAI_API_KEY') ?: ($config['OPENAI_API_KEY'] ?? '');
-if (!$apiKey || str_starts_with($apiKey, 'sk-REPLACE_ME')) {
+$isPlaceholder = (substr((string)$apiKey, 0, 13) === 'sk-REPLACE_ME');
+if (!$apiKey || $isPlaceholder) {
   http_response_code(500);
   echo json_encode(['error' => 'Missing OPENAI_API_KEY in api/config.php or env']);
   exit;
