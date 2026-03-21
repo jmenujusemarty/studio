@@ -1,4 +1,63 @@
 const $ = (id) => document.getElementById(id);
+const DEFAULT_SETTINGS = {
+  prompts: {
+    titles: '',
+    descriptions: '',
+    growth: ''
+  },
+  skills: {
+    enabled: true,
+    selected: ['seo', 'curiosity-gap', 'high-stakes'],
+    custom: ''
+  },
+  algorithms: {
+    titleTemperature: 0.7,
+    descriptionTemperature: 0.5,
+    growthTemperature: 0.7,
+    titleCount: 10
+  },
+  channel: {
+    mode: 'both',
+    audience: 'CZ',
+    publishMode: 'manual'
+  }
+};
+
+function cloneDefaultSettings(){
+  return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+}
+function ensureSettingsShape(raw){
+  const base=cloneDefaultSettings();
+  const s = (raw && typeof raw === 'object') ? raw : {};
+  return {
+    prompts: {
+      titles: String(s.prompts?.titles ?? base.prompts.titles),
+      descriptions: String(s.prompts?.descriptions ?? base.prompts.descriptions),
+      growth: String(s.prompts?.growth ?? base.prompts.growth)
+    },
+    skills: {
+      enabled: typeof s.skills?.enabled === 'boolean' ? s.skills.enabled : base.skills.enabled,
+      selected: Array.isArray(s.skills?.selected) ? s.skills.selected.map(x=>String(x)) : base.skills.selected,
+      custom: String(s.skills?.custom ?? base.skills.custom)
+    },
+    algorithms: {
+      titleTemperature: Number.isFinite(Number(s.algorithms?.titleTemperature)) ? Number(s.algorithms.titleTemperature) : base.algorithms.titleTemperature,
+      descriptionTemperature: Number.isFinite(Number(s.algorithms?.descriptionTemperature)) ? Number(s.algorithms.descriptionTemperature) : base.algorithms.descriptionTemperature,
+      growthTemperature: Number.isFinite(Number(s.algorithms?.growthTemperature)) ? Number(s.algorithms.growthTemperature) : base.algorithms.growthTemperature,
+      titleCount: Number.isFinite(Number(s.algorithms?.titleCount)) ? Number(s.algorithms.titleCount) : base.algorithms.titleCount
+    },
+    channel: {
+      mode: String(s.channel?.mode ?? base.channel.mode),
+      audience: String(s.channel?.audience ?? base.channel.audience),
+      publishMode: String(s.channel?.publishMode ?? base.channel.publishMode)
+    }
+  };
+}
+function normalizeProjectShape(project){
+  const p={...(project||{})};
+  p.settings = ensureSettingsShape(p.settings);
+  return p;
+}
 const seed = {
   episode:"Afterparty #15", length:"2H33MIN", videoUrl:"https://youtu.be/085m6rgXjBA",
   desc:"Dneska to je totální mix všeho, co máš na afterparty rád: cestování bez filtru, Winterfest chaos, bizár historky z víkendu, rapový novinky a Survivor intriky.",
@@ -7,17 +66,29 @@ const seed = {
   thumbPrompt:"Two hosts with shocked expression, Czech podcast thumbnail, vivid contrast, punchy text area left",
   outliers:[{title:"ZRCE VLOG #3",views:310000,ratio:"+220%"}],
   keywords:["erem","afterparty podcast","zrce 2025"],
-  clips:[]
+  clips:[],
+  settings: cloneDefaultSettings()
 };
 const STORAGE_KEY='eremstudio_store_v3';
 function parseVideoId(url=''){const m=url.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{6,})/);return m?m[1]:(url.trim().replace(/[^a-zA-Z0-9]+/g,'-').slice(0,40)||'untitled')}
 function readStore(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}')}catch{return {}}}
 function writeStore(s){localStorage.setItem(STORAGE_KEY,JSON.stringify(s))}
-function ensureStore(){const s=readStore();if(!s.projects)s.projects={};if(!s.activeId){const id=parseVideoId(seed.videoUrl);s.projects[id]={...seed,_projectId:id};s.activeId=id;writeStore(s)}return s}
-function loadActive(){const s=ensureStore();return {...(s.projects[s.activeId]||{...seed,_projectId:s.activeId})}}
+function ensureStore(){
+  const s=readStore();
+  if(!s.projects)s.projects={};
+  if(!s.activeId){
+    const id=parseVideoId(seed.videoUrl);
+    s.projects[id]=normalizeProjectShape({...seed,_projectId:id});
+    s.activeId=id;
+  }
+  for(const id of Object.keys(s.projects)) s.projects[id]=normalizeProjectShape(s.projects[id]);
+  writeStore(s);
+  return s;
+}
+function loadActive(){const s=ensureStore();return normalizeProjectShape({...((s.projects[s.activeId])||{...seed,_projectId:s.activeId})})}
 const state=loadActive();
 function save(){const s=ensureStore();s.projects[state._projectId]={...state};s.activeId=state._projectId;writeStore(s)}
-function switchProject(url){const id=parseVideoId(url);if(id===state._projectId)return false;save();const s=ensureStore();const next=s.projects[id]||{...seed,episode:'',videoUrl:url,_projectId:id};Object.keys(state).forEach(k=>delete state[k]);Object.assign(state,next);save();return true}
+function switchProject(url){const id=parseVideoId(url);if(id===state._projectId)return false;save();const s=ensureStore();const next=normalizeProjectShape(s.projects[id]||{...seed,episode:'',videoUrl:url,_projectId:id});Object.keys(state).forEach(k=>delete state[k]);Object.assign(state,next);save();return true}
 function bindCore(){['episode','length','videoUrl','desc','timeline'].forEach(k=>{const el=$(k);if(!el)return;el.value=state[k]||'';if(k==='videoUrl'){el.onchange=e=>{const sw=switchProject(e.target.value);if(sw){['episode','length','videoUrl','desc','timeline'].forEach(x=>$(x)&&($(x).value=state[x]||''))}else state[k]=e.target.value;save();};el.oninput=e=>state[k]=e.target.value;}else el.oninput=e=>{state[k]=e.target.value;save();}})}
 function _parseTs(raw){
   const s=(raw||'').trim();
@@ -237,7 +308,8 @@ async function callCodex(taskType, inputData, opts={}){
     descriptions: buildDescriptionsPrompt(inputData),
     growth: buildGrowthPrompt(inputData)
   };
-  const prompt = prompts[taskType];
+  const override = (typeof inputData?.promptOverride === 'string') ? inputData.promptOverride.trim() : '';
+  const prompt = override || prompts[taskType];
   if(!prompt) throw new Error(`Unknown taskType: ${taskType}`);
   const apiUrl = opts.apiUrl || getCodexApiUrl();
   if(!apiUrl) throw new Error('Missing API URL: nastav eremstudio_codex_api_url v localStorage.');
@@ -272,9 +344,10 @@ async function generateStrategicTitles(input={}){
   const audience = input.audience || 'CZ';
   const out = await callCodex('titles', {transcript, trendsKeywords, audience}, input.options || {});
   if(!Array.isArray(out)) throw new Error('Titles payload must be array.');
+  const maxTitles = Number(input.maxTitles || 10);
   return out
     .filter(x=>x && x.title)
-    .slice(0,10)
+    .slice(0,Math.max(1,Math.min(30,maxTitles)))
     .map(x=>({
       title: String(x.title).trim(),
       category: String(x.category || 'Curiosity Gap').trim(),
@@ -337,7 +410,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,ensureSettingsShape,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)

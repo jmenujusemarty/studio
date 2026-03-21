@@ -50,6 +50,7 @@
       <button class="tab" role="tab" aria-selected="false" aria-controls="descs" id="tab-descs" data-pane="descs">Popisky</button>
       <button class="tab" role="tab" aria-selected="false" aria-controls="growth" id="tab-growth" data-pane="growth">Growth</button>
       <button class="tab" role="tab" aria-selected="false" aria-controls="clips" id="tab-clips" data-pane="clips">Clipy</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="settings" id="tab-settings" data-pane="settings">Nastavení</button>
     </div>
     <div id="statusMsg" class="mini" aria-live="polite"></div>
 
@@ -86,6 +87,60 @@
       <div class="actions"><button class="btn s" id="thumbScore">Spočítat thumbnail score</button></div>
       <div id="thumbScoreOut" class="line">Score: -</div>
     </div>
+
+    <div id="settings" class="pane" role="tabpanel" aria-labelledby="tab-settings">
+      <h3>Prompty</h3>
+      <label>Titles prompt override</label><textarea id="setPromptTitles" placeholder="Volitelné. Přepíše default prompt pro názvy."></textarea>
+      <label>Description prompt override</label><textarea id="setPromptDescriptions" placeholder="Volitelné. Přepíše default prompt pro popisky."></textarea>
+      <label>Growth prompt override</label><textarea id="setPromptGrowth" placeholder="Volitelné. Přepíše default prompt pro growth/clipy."></textarea>
+
+      <h3>Skills</h3>
+      <div class="actions">
+        <label><input type="checkbox" id="setSkillsEnabled"> Zapnout skill filtry</label>
+      </div>
+      <label>Skills (čárkou)</label><input id="setSkillsSelected" placeholder="seo, curiosity-gap, high-stakes">
+      <label>Custom skill instrukce</label><textarea id="setSkillsCustom" placeholder="Volitelné interní instrukce pro LLM."></textarea>
+
+      <h3>Algoritmy</h3>
+      <div class="row">
+        <div><label>Title temperature</label><input id="setTitleTemp" type="number" min="0" max="1.5" step="0.1"></div>
+        <div><label>Description temperature</label><input id="setDescTemp" type="number" min="0" max="1.5" step="0.1"></div>
+      </div>
+      <div class="row">
+        <div><label>Growth temperature</label><input id="setGrowthTemp" type="number" min="0" max="1.5" step="0.1"></div>
+        <div><label>Počet title variant</label><input id="setTitleCount" type="number" min="1" max="30" step="1"></div>
+      </div>
+
+      <h3>Výběr kanálu</h3>
+      <div class="row">
+        <div>
+          <label>Channel mode</label>
+          <select id="setChannelMode">
+            <option value="youtube">YouTube</option>
+            <option value="spotify">Spotify</option>
+            <option value="both">Both</option>
+            <option value="auto">Auto</option>
+          </select>
+        </div>
+        <div>
+          <label>Audience</label>
+          <select id="setAudience">
+            <option value="CZ">CZ</option>
+            <option value="EN">EN</option>
+          </select>
+        </div>
+      </div>
+      <label>Publish mode</label>
+      <select id="setPublishMode">
+        <option value="manual">Manual</option>
+        <option value="auto">Auto</option>
+      </select>
+
+      <div class="actions">
+        <button class="btn s" id="resetSettingsTab">Reset default</button>
+        <button class="btn p" id="saveSettingsTab">Uložit nastavení projektu</button>
+      </div>
+    </div>
   </section>
 </div></main>
 <div class="modal-bg" id="settingsModalBg" aria-hidden="true">
@@ -108,6 +163,54 @@
 Studio.bindCore();
 const esc=(v)=>String(v??'').replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function setStatus(msg){ document.getElementById('statusMsg').textContent = msg || ''; }
+function getProjectSettings(){
+  Studio.state.settings = Studio.ensureSettingsShape(Studio.state.settings);
+  return Studio.state.settings;
+}
+function renderSettingsTab(){
+  const s=getProjectSettings();
+  document.getElementById('setPromptTitles').value=s.prompts.titles||'';
+  document.getElementById('setPromptDescriptions').value=s.prompts.descriptions||'';
+  document.getElementById('setPromptGrowth').value=s.prompts.growth||'';
+  document.getElementById('setSkillsEnabled').checked=!!s.skills.enabled;
+  document.getElementById('setSkillsSelected').value=(s.skills.selected||[]).join(', ');
+  document.getElementById('setSkillsCustom').value=s.skills.custom||'';
+  document.getElementById('setTitleTemp').value=String(s.algorithms.titleTemperature);
+  document.getElementById('setDescTemp').value=String(s.algorithms.descriptionTemperature);
+  document.getElementById('setGrowthTemp').value=String(s.algorithms.growthTemperature);
+  document.getElementById('setTitleCount').value=String(s.algorithms.titleCount);
+  document.getElementById('setChannelMode').value=s.channel.mode||'both';
+  document.getElementById('setAudience').value=s.channel.audience||'CZ';
+  document.getElementById('setPublishMode').value=s.channel.publishMode||'manual';
+}
+function readSettingsTab(){
+  const next=Studio.ensureSettingsShape({
+    prompts:{
+      titles:document.getElementById('setPromptTitles').value,
+      descriptions:document.getElementById('setPromptDescriptions').value,
+      growth:document.getElementById('setPromptGrowth').value
+    },
+    skills:{
+      enabled:document.getElementById('setSkillsEnabled').checked,
+      selected:document.getElementById('setSkillsSelected').value.split(',').map(x=>x.trim()).filter(Boolean),
+      custom:document.getElementById('setSkillsCustom').value
+    },
+    algorithms:{
+      titleTemperature:Number(document.getElementById('setTitleTemp').value),
+      descriptionTemperature:Number(document.getElementById('setDescTemp').value),
+      growthTemperature:Number(document.getElementById('setGrowthTemp').value),
+      titleCount:Number(document.getElementById('setTitleCount').value)
+    },
+    channel:{
+      mode:document.getElementById('setChannelMode').value,
+      audience:document.getElementById('setAudience').value,
+      publishMode:document.getElementById('setPublishMode').value
+    }
+  });
+  Studio.state.settings=next;
+  Studio.save();
+  return next;
+}
 function openSettingsModal(){
   const bg=document.getElementById('settingsModalBg');
   document.getElementById('apiUrlInput').value=Studio.getCodexApiUrl();
@@ -138,6 +241,7 @@ function renderProjects(){
 window.selectP=(id)=>{
   if(!Studio.selectProject(id)) return;
   Studio.bindCore();
+  renderSettingsTab();
   fillOutputs();
   renderProjects();
   renderOutliers();
@@ -148,6 +252,7 @@ window.delP=(id)=>{
   if(!confirm('Opravdu smazat tento projekt?')) return;
   Studio.removeProject(id);
   Studio.bindCore();
+  renderSettingsTab();
   renderProjects();
   fillOutputs();
   updateKpis();
@@ -246,6 +351,7 @@ document.getElementById('openVideo').onclick=()=>{
   Studio.save();
   document.getElementById('videoUrl').value=url;
   document.getElementById('videoUrl').dispatchEvent(new Event('change'));
+  renderSettingsTab();
   setStatus('Video URL nastaveno.');
 };
 
@@ -269,7 +375,17 @@ document.getElementById('refreshTrends').onclick=async()=>{
 document.getElementById('genTitles').onclick=()=>{
   (async()=>{
     try{
-      const out=await Studio.generateStrategicTitles({transcript:Studio.state.timeline||'',trendsKeywords:Studio.state.trendSnapshot?.merged||Studio.state.keywords||[],audience:'CZ'});
+      const s=readSettingsTab();
+      const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
+      const promptOverride = [s.prompts.titles||'', skillHints ? `Skills: ${skillHints}` : '', `Channel: ${s.channel.mode}, Audience: ${s.channel.audience}`].filter(Boolean).join('\n');
+      const out=await Studio.generateStrategicTitles({
+        transcript:Studio.state.timeline||'',
+        trendsKeywords:Studio.state.trendSnapshot?.merged||Studio.state.keywords||[],
+        audience:s.channel.audience||'CZ',
+        maxTitles:s.algorithms.titleCount||10,
+        options:{temperature:s.algorithms.titleTemperature||0.7},
+        promptOverride
+      });
       Studio.state.smartTitles=out;Studio.state.titles=out.map(x=>x.title);Studio.save();
       document.getElementById('titleList').innerHTML=out.map((x,i)=>`<div class='line'><b>${i+1}.</b> ${esc(x.title)} · ${esc(x.category)} · ${x.score}/100</div>`).join('');
       updateKpis();
@@ -287,7 +403,15 @@ document.getElementById('genTitles').onclick=()=>{
 document.getElementById('genDescs').onclick=()=>{
   (async()=>{
     try{
-      const out=await Studio.generateSmartDescriptions({timeline:Studio.state.timeline||'',descShort:Studio.state.desc||''});
+      const s=readSettingsTab();
+      const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
+      const promptOverride = [s.prompts.descriptions||'', skillHints ? `Skills: ${skillHints}` : '', `Channel: ${s.channel.mode}, Publish mode: ${s.channel.publishMode}`].filter(Boolean).join('\n');
+      const out=await Studio.generateSmartDescriptions({
+        timeline:Studio.state.timeline||'',
+        descShort:Studio.state.desc||'',
+        options:{temperature:s.algorithms.descriptionTemperature||0.5},
+        promptOverride
+      });
       document.getElementById('ytOut').value=out.youtube_description || Studio.ytText();
       document.getElementById('spOut').value=out.spotify_html || Studio.spText();
       setStatus('Popisky vygenerovány přes LLM.');
@@ -301,7 +425,14 @@ document.getElementById('genDescs').onclick=()=>{
 document.getElementById('runRetention').onclick=()=>{
   (async()=>{
     try{
-      const out=await Studio.generateGrowthAndClips({transcript:Studio.state.timeline||''});
+      const s=readSettingsTab();
+      const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
+      const promptOverride = [s.prompts.growth||'', skillHints ? `Skills: ${skillHints}` : '', `Channel: ${s.channel.mode}`].filter(Boolean).join('\n');
+      const out=await Studio.generateGrowthAndClips({
+        transcript:Studio.state.timeline||'',
+        options:{temperature:s.algorithms.growthTemperature||0.7},
+        promptOverride
+      });
       document.getElementById('retention').innerHTML=`<div class='line'>${esc(out.retention_tip||'')}</div>`;
       if(out.clips?.length){
         document.getElementById('clipList').innerHTML=out.clips.map(x=>`<div class='line'><b>${esc(x.start)} · ${esc(x.hook)}</b><br><span class='mini'>${esc(x.reason)}</span></div>`).join('');
@@ -318,7 +449,14 @@ document.getElementById('runTrends').onclick=()=>{document.getElementById('kw').
 document.getElementById('mineClips').onclick=()=>{
   (async()=>{
     try{
-      const out=await Studio.generateGrowthAndClips({transcript:Studio.state.timeline||''});
+      const s=readSettingsTab();
+      const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
+      const promptOverride = [s.prompts.growth||'', skillHints ? `Skills: ${skillHints}` : '', `Channel: ${s.channel.mode}`].filter(Boolean).join('\n');
+      const out=await Studio.generateGrowthAndClips({
+        transcript:Studio.state.timeline||'',
+        options:{temperature:s.algorithms.growthTemperature||0.7},
+        promptOverride
+      });
       const c=(out.clips||[]).map((x,i)=>({hook:`${x.start} · ${x.hook || ('Hook #'+(i+1))}`,caption:x.reason||''}));
       if(c.length){
         Studio.state.clips=c;Studio.save();
@@ -337,6 +475,13 @@ document.getElementById('mineClips').onclick=()=>{
   })();
 };
 document.getElementById('thumbScore').onclick=()=>{document.getElementById('thumbScoreOut').textContent='Score: '+Studio.scoreThumb(document.getElementById('thumbText').value)+'/100';};
+document.getElementById('saveSettingsTab').onclick=()=>{readSettingsTab();setStatus('Nastavení projektu uloženo.');};
+document.getElementById('resetSettingsTab').onclick=()=>{
+  Studio.state.settings=Studio.ensureSettingsShape(Studio.defaultSettings);
+  Studio.save();
+  renderSettingsTab();
+  setStatus('Nastavení vráceno na default.');
+};
 
-fillOutputs();renderProjects();renderOutliers();updateKpis();
+renderSettingsTab();fillOutputs();renderProjects();renderOutliers();updateKpis();
 </script></body></html>
