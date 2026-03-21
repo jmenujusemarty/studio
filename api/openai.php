@@ -1,8 +1,7 @@
 <?php
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-API-Token');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   http_response_code(204);
@@ -18,6 +17,44 @@ $config = [];
 $configPath = __DIR__ . '/config.php';
 if (is_file($configPath)) {
   $config = require $configPath;
+}
+$allowedOrigins = $config['ALLOWED_ORIGINS'] ?? ['https://eremvole.cz'];
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if ($origin !== '' && !in_array($origin, $allowedOrigins, true)) {
+  http_response_code(403);
+  echo json_encode(['error' => 'Origin not allowed']);
+  exit;
+}
+if ($origin !== '') {
+  header('Access-Control-Allow-Origin: ' . $origin);
+}
+
+$apiAccessToken = (string)($config['API_ACCESS_TOKEN'] ?? '');
+if ($apiAccessToken !== '') {
+  $incomingToken = (string)($_SERVER['HTTP_X_API_TOKEN'] ?? '');
+  if (!hash_equals($apiAccessToken, $incomingToken)) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Unauthorized']);
+    exit;
+  }
+}
+
+$rateLimitPerMin = (int)($config['RATE_LIMIT_PER_MIN'] ?? 60);
+if ($rateLimitPerMin > 0) {
+  $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+  $bucket = date('YmdHi');
+  $f = sys_get_temp_dir() . '/eremstudio_rate_' . md5($ip . '_' . $bucket) . '.txt';
+  $count = 0;
+  if (is_file($f)) {
+    $count = (int)@file_get_contents($f);
+  }
+  $count++;
+  @file_put_contents($f, (string)$count);
+  if ($count > $rateLimitPerMin) {
+    http_response_code(429);
+    echo json_encode(['error' => 'Rate limit exceeded']);
+    exit;
+  }
 }
 
 $apiKey = getenv('OPENAI_API_KEY') ?: ($config['OPENAI_API_KEY'] ?? '');
@@ -99,9 +136,58 @@ if ($code >= 400) {
 }
 
 $text = $decoded['choices'][0]['message']['content'] ?? '';
+$payload = json_decode($text, true);
+if (!is_array($payload)) {
+  http_response_code(502);
+  echo json_encode(['error' => 'Model did not return valid JSON', 'text' => $text]);
+  exit;
+}
+
+if ($taskType === 'titles') {
+  $isList = array_keys($payload) === range(0, count($payload) - 1);
+  if (!$isList) {
+    http_response_code(502);
+    echo json_encode(['error' => 'Invalid titles payload']);
+    exit;
+  }
+  $normalized = [];
+  foreach ($payload as $row) {
+    if (!is_array($row) || !isset($row['title'])) continue;
+    $normalized[] = [
+      'title' => (string)$row['title'],
+      'category' => (string)($row['category'] ?? 'Curiosity Gap'),
+      'score' => max(1, min(100, (int)($row['score'] ?? 70))),
+    ];
+  }
+  $payload = $normalized;
+}
+if ($taskType === 'descriptions') {
+  $payload = [
+    'youtube_description' => (string)($payload['youtube_description'] ?? ''),
+    'spotify_html' => (string)($payload['spotify_html'] ?? ''),
+  ];
+}
+if ($taskType === 'growth') {
+  $clips = [];
+  if (isset($payload['clips']) && is_array($payload['clips'])) {
+    foreach ($payload['clips'] as $c) {
+      if (!is_array($c)) continue;
+      $clips[] = [
+        'start' => (string)($c['start'] ?? '00:00'),
+        'hook' => (string)($c['hook'] ?? ''),
+        'reason' => (string)($c['reason'] ?? ''),
+      ];
+    }
+  }
+  $payload = [
+    'clips' => $clips,
+    'retention_tip' => (string)($payload['retention_tip'] ?? ''),
+  ];
+}
+
 echo json_encode([
   'ok' => true,
   'taskType' => $taskType,
   'model' => $model,
-  'text' => $text,
+  'payload' => $payload,
 ]);

@@ -75,14 +75,20 @@ function readStore(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{
 function writeStore(s){localStorage.setItem(STORAGE_KEY,JSON.stringify(s))}
 function ensureStore(){
   const s=readStore();
+  let changed=false;
   if(!s.projects)s.projects={};
   if(!s.activeId){
     const id=parseVideoId(seed.videoUrl);
     s.projects[id]=normalizeProjectShape({...seed,_projectId:id});
     s.activeId=id;
+    changed=true;
   }
-  for(const id of Object.keys(s.projects)) s.projects[id]=normalizeProjectShape(s.projects[id]);
-  writeStore(s);
+  for(const id of Object.keys(s.projects)){
+    const before=JSON.stringify(s.projects[id]||{});
+    s.projects[id]=normalizeProjectShape(s.projects[id]);
+    if(before!==JSON.stringify(s.projects[id])) changed=true;
+  }
+  if(changed) writeStore(s);
   return s;
 }
 function loadActive(){const s=ensureStore();return normalizeProjectShape({...((s.projects[s.activeId])||{...seed,_projectId:s.activeId})})}
@@ -222,6 +228,15 @@ function setCodexApiUrl(url=''){
   else localStorage.removeItem('eremstudio_codex_api_url');
   return getCodexApiUrl();
 }
+function getApiAccessToken(){
+  return (localStorage.getItem('eremstudio_api_access_token') || '').trim();
+}
+function setApiAccessToken(token=''){
+  const v=String(token||'').trim();
+  if(v) localStorage.setItem('eremstudio_api_access_token',v);
+  else localStorage.removeItem('eremstudio_api_access_token');
+  return getApiAccessToken();
+}
 
 function _extractJsonPayload(text=''){
   const raw=(text||'').trim();
@@ -244,7 +259,7 @@ function _extractJsonPayload(text=''){
   return null;
 }
 
-function buildTitlesPrompt({transcript='', trendsKeywords=[], audience='CZ'}={}){
+function buildTitlesPrompt({transcript='', trendsKeywords=[], audience='CZ', titleCount=10}={}){
   return [
     'System Prompt:',
     'Jsi YouTube Strategist s 10 lety praxe. Tvym cilem je maximalizovat CTR (miru prokliku).',
@@ -255,7 +270,7 @@ function buildTitlesPrompt({transcript='', trendsKeywords=[], audience='CZ'}={})
     `Cilove publikum: ${audience}`,
     '',
     'Ukol:',
-    'Vygeneruj 10 unikatnich nazvu v techto kategoriich:',
+    `Vygeneruj ${Math.max(1,Math.min(30,Number(titleCount)||10))} unikatnich nazvu v techto kategoriich:`,
     '- Search Optimized (SEO)',
     '- Curiosity Gap',
     '- The "High Stakes" Title',
@@ -313,36 +328,58 @@ async function callCodex(taskType, inputData, opts={}){
   if(!prompt) throw new Error(`Unknown taskType: ${taskType}`);
   const apiUrl = opts.apiUrl || getCodexApiUrl();
   if(!apiUrl) throw new Error('Missing API URL: nastav eremstudio_codex_api_url v localStorage.');
+  const apiToken = opts.apiToken ?? getApiAccessToken();
+  const attempts = Math.max(1,Math.min(3,Number(opts.retries ?? 2)));
+  const timeoutMs = Math.max(3000,Math.min(90000,Number(opts.timeoutMs ?? 30000)));
 
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({
-      taskType,
-      prompt,
-      temperature: opts.temperature ?? 0.7
-    })
-  });
-  if(!response.ok){
-    let body='';
-    try{ body = await response.text(); }catch{}
-    throw new Error(`LLM request failed (${response.status})${body ? `: ${body}` : ''}`);
+  let lastErr = null;
+  for(let i=0;i<attempts;i++){
+    const controller = new AbortController();
+    const timer = setTimeout(()=>controller.abort(), timeoutMs);
+    try{
+      const headers = {'Content-Type':'application/json'};
+      if(apiToken) headers['X-API-Token']=apiToken;
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers,
+        signal: controller.signal,
+        body: JSON.stringify({
+          taskType,
+          prompt,
+          temperature: opts.temperature ?? 0.7
+        })
+      });
+      if(!response.ok){
+        let body='';
+        try{ body = await response.text(); }catch{}
+        throw new Error(`LLM request failed (${response.status})${body ? `: ${body}` : ''}`);
+      }
+      const data = await response.json();
+      if(data && typeof data === 'object'){
+        if(data.payload) return data.payload;
+        if(data.clips || data.youtube_description || Array.isArray(data)) return data;
+      }
+      const text = data?.text || data?.output || data?.message || '';
+      const parsed = _extractJsonPayload(text);
+      if(parsed) return parsed;
+      throw new Error('LLM response is not valid JSON payload.');
+    }catch(err){
+      lastErr = err;
+      if(i===attempts-1) break;
+      await new Promise(r=>setTimeout(r, 350*(i+1)));
+    }finally{
+      clearTimeout(timer);
+    }
   }
-  const data = await response.json();
-  if(data && typeof data === 'object' && (data.clips || data.youtube_description || Array.isArray(data))){
-    return data;
-  }
-  const text = data?.text || data?.output || data?.message || '';
-  const parsed = _extractJsonPayload(text);
-  if(parsed) return parsed;
-  throw new Error('LLM response is not valid JSON payload.');
+  throw lastErr || new Error('LLM request failed');
 }
 
 async function generateStrategicTitles(input={}){
   const transcript = (input.transcript || state.timeline || '').trim();
   const trendsKeywords = input.trendsKeywords || state.trendSnapshot?.merged || state.keywords || [];
   const audience = input.audience || 'CZ';
-  const out = await callCodex('titles', {transcript, trendsKeywords, audience}, input.options || {});
+  const titleCount = Number(input.maxTitles || 10);
+  const out = await callCodex('titles', {transcript, trendsKeywords, audience, titleCount, promptOverride: input.promptOverride || ''}, input.options || {});
   if(!Array.isArray(out)) throw new Error('Titles payload must be array.');
   const maxTitles = Number(input.maxTitles || 10);
   return out
@@ -358,7 +395,7 @@ async function generateStrategicTitles(input={}){
 async function generateSmartDescriptions(input={}){
   const timeline = input.timeline || normalizedTimelineItems().map(x=>`${x.ts_hms} ${x.title}`).join('\n');
   const descShort = input.descShort || state.desc || '';
-  const out = await callCodex('descriptions', {timeline, descShort}, input.options || {});
+  const out = await callCodex('descriptions', {timeline, descShort, promptOverride: input.promptOverride || ''}, input.options || {});
   if(!out || typeof out !== 'object') throw new Error('Descriptions payload must be object.');
   return {
     youtube_description: String(out.youtube_description || '').trim(),
@@ -368,7 +405,7 @@ async function generateSmartDescriptions(input={}){
 
 async function generateGrowthAndClips(input={}){
   const transcript = (input.transcript || state.timeline || '').trim();
-  const out = await callCodex('growth', {transcript}, input.options || {});
+  const out = await callCodex('growth', {transcript, promptOverride: input.promptOverride || ''}, input.options || {});
   if(!out || typeof out !== 'object') throw new Error('Growth payload must be object.');
   const clips = Array.isArray(out.clips) ? out.clips.slice(0,5).map(c=>({
     start: String(c.start || '00:00'),
@@ -410,7 +447,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,ensureSettingsShape,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,ensureSettingsShape,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)

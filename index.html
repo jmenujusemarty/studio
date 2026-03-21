@@ -148,6 +148,8 @@
     <h3 id="settingsTitle">LLM API nastavení</h3>
     <label for="apiUrlInput">API URL</label>
     <input id="apiUrlInput" placeholder="https://tvoje-api-url" />
+    <label for="apiTokenInput">API Access Token (volitelné)</label>
+    <input id="apiTokenInput" placeholder="token z api/config.php" />
     <p class="mini">Ukládá se do localStorage jako <code>eremstudio_codex_api_url</code>. Výchozí URL je <code>./api/openai.php</code>.</p>
     <div id="apiTestDetail" class="mini"></div>
     <div class="actions">
@@ -214,6 +216,7 @@ function readSettingsTab(){
 function openSettingsModal(){
   const bg=document.getElementById('settingsModalBg');
   document.getElementById('apiUrlInput').value=Studio.getCodexApiUrl();
+  document.getElementById('apiTokenInput').value=Studio.getApiAccessToken();
   document.getElementById('apiTestDetail').textContent='';
   bg.style.display='flex';
   bg.setAttribute('aria-hidden','false');
@@ -308,6 +311,7 @@ document.getElementById('openSettings').onclick=openSettingsModal;
 document.getElementById('closeSettings').onclick=closeSettingsModal;
 document.getElementById('saveApiUrl').onclick=()=>{
   const saved=Studio.setCodexApiUrl(document.getElementById('apiUrlInput').value);
+  Studio.setApiAccessToken(document.getElementById('apiTokenInput').value);
   setStatus(saved ? 'API URL uložena.' : 'API URL vymazána.');
   closeSettingsModal();
 };
@@ -318,12 +322,13 @@ document.getElementById('testApiUrl').onclick=()=>{
     btn.disabled=true;
     btn.textContent='Testuji...';
     try{
-      const testUrl=Studio.setCodexApiUrl(document.getElementById('apiUrlInput').value);
+      const testUrl=document.getElementById('apiUrlInput').value.trim() || Studio.getCodexApiUrl();
+      const testToken=document.getElementById('apiTokenInput').value.trim() || Studio.getApiAccessToken();
       await Studio.callCodex('titles',{
         transcript:'Test',
         trendsKeywords:['test'],
         audience:'CZ'
-      },{apiUrl:testUrl,temperature:0});
+      },{apiUrl:testUrl,apiToken:testToken,temperature:0,retries:1,timeoutMs:15000});
       setStatus('API test OK.');
       document.getElementById('apiTestDetail').textContent='Spojení funguje.';
     }catch(e){
@@ -337,7 +342,9 @@ document.getElementById('testApiUrl').onclick=()=>{
 };
 document.getElementById('clearApiUrl').onclick=()=>{
   Studio.setCodexApiUrl('');
+  Studio.setApiAccessToken('');
   document.getElementById('apiUrlInput').value='';
+  document.getElementById('apiTokenInput').value='';
   setStatus('API URL vymazána.');
 };
 document.getElementById('settingsModalBg').onclick=(e)=>{
@@ -354,6 +361,19 @@ document.getElementById('openVideo').onclick=()=>{
   renderSettingsTab();
   setStatus('Video URL nastaveno.');
 };
+
+async function runWithBusy(buttonId, fn){
+  const btn=document.getElementById(buttonId);
+  const txt=btn.textContent;
+  btn.disabled=true;
+  btn.textContent='Pracuji...';
+  try{
+    await fn();
+  }finally{
+    btn.disabled=false;
+    btn.textContent=txt;
+  }
+}
 
 document.getElementById('saveCore').onclick=()=>{Studio.save();renderProjects();fillOutputs();updateKpis();setStatus('Projekt uložen.');};
 document.getElementById('copyY').onclick=async()=>{const ok=await Studio.copy(Studio.ytText());setStatus(ok?'YouTube text zkopírován.':'Kopírování selhalo.');};
@@ -373,7 +393,7 @@ document.getElementById('refreshTrends').onclick=async()=>{
   btn.textContent=original;
 };
 document.getElementById('genTitles').onclick=()=>{
-  (async()=>{
+  runWithBusy('genTitles', async()=>{
     try{
       const s=readSettingsTab();
       const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
@@ -383,25 +403,25 @@ document.getElementById('genTitles').onclick=()=>{
         trendsKeywords:Studio.state.trendSnapshot?.merged||Studio.state.keywords||[],
         audience:s.channel.audience||'CZ',
         maxTitles:s.algorithms.titleCount||10,
-        options:{temperature:s.algorithms.titleTemperature||0.7},
+        options:{temperature:s.algorithms.titleTemperature||0.7,apiToken:Studio.getApiAccessToken()},
         promptOverride
       });
       Studio.state.smartTitles=out;Studio.state.titles=out.map(x=>x.title);Studio.save();
       document.getElementById('titleList').innerHTML=out.map((x,i)=>`<div class='line'><b>${i+1}.</b> ${esc(x.title)} · ${esc(x.category)} · ${x.score}/100</div>`).join('');
       updateKpis();
       setStatus('Strategické názvy vygenerovány přes LLM.');
-    }catch{
+    }catch(e){
       const out=Studio.trendDrivenTitleVariants(Studio.state.episode||'', Studio.state.timeline||'');
       Studio.state.smartTitles=out;Studio.state.titles=out.map(x=>x.title);Studio.save();
       document.getElementById('titleList').innerHTML=out.map((x,i)=>`<div class='line'><b>${i+1}.</b> ${esc(x.title)} · fallback · ${x.score}/100</div>`).join('');
       updateKpis();
-      setStatus('LLM titles selhaly, použit fallback.');
+      setStatus(`LLM titles selhaly, použit fallback. ${e?.message||''}`.trim());
     }
-  })();
+  });
 };
 
 document.getElementById('genDescs').onclick=()=>{
-  (async()=>{
+  runWithBusy('genDescs', async()=>{
     try{
       const s=readSettingsTab();
       const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
@@ -409,28 +429,34 @@ document.getElementById('genDescs').onclick=()=>{
       const out=await Studio.generateSmartDescriptions({
         timeline:Studio.state.timeline||'',
         descShort:Studio.state.desc||'',
-        options:{temperature:s.algorithms.descriptionTemperature||0.5},
+        options:{temperature:s.algorithms.descriptionTemperature||0.5,apiToken:Studio.getApiAccessToken()},
         promptOverride
       });
-      document.getElementById('ytOut').value=out.youtube_description || Studio.ytText();
-      document.getElementById('spOut').value=out.spotify_html || Studio.spText();
+      if(s.channel.mode==='youtube'){
+        document.getElementById('ytOut').value=out.youtube_description || Studio.ytText();
+      }else if(s.channel.mode==='spotify'){
+        document.getElementById('spOut').value=out.spotify_html || Studio.spText();
+      }else{
+        document.getElementById('ytOut').value=out.youtube_description || Studio.ytText();
+        document.getElementById('spOut').value=out.spotify_html || Studio.spText();
+      }
       setStatus('Popisky vygenerovány přes LLM.');
-    }catch{
+    }catch(e){
       fillOutputs();
-      setStatus('LLM popisky selhaly, použit fallback.');
+      setStatus(`LLM popisky selhaly, použit fallback. ${e?.message||''}`.trim());
     }
-  })();
+  });
 };
 
 document.getElementById('runRetention').onclick=()=>{
-  (async()=>{
+  runWithBusy('runRetention', async()=>{
     try{
       const s=readSettingsTab();
       const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
       const promptOverride = [s.prompts.growth||'', skillHints ? `Skills: ${skillHints}` : '', `Channel: ${s.channel.mode}`].filter(Boolean).join('\n');
       const out=await Studio.generateGrowthAndClips({
         transcript:Studio.state.timeline||'',
-        options:{temperature:s.algorithms.growthTemperature||0.7},
+        options:{temperature:s.algorithms.growthTemperature||0.7,apiToken:Studio.getApiAccessToken()},
         promptOverride
       });
       document.getElementById('retention').innerHTML=`<div class='line'>${esc(out.retention_tip||'')}</div>`;
@@ -438,23 +464,23 @@ document.getElementById('runRetention').onclick=()=>{
         document.getElementById('clipList').innerHTML=out.clips.map(x=>`<div class='line'><b>${esc(x.start)} · ${esc(x.hook)}</b><br><span class='mini'>${esc(x.reason)}</span></div>`).join('');
       }
       setStatus('Growth analýza z LLM hotová.');
-    }catch{
+    }catch(e){
       document.getElementById('retention').innerHTML=Studio.retentionHints().map(x=>`<div class='line'>${esc(x)}</div>`).join('');
-      setStatus('LLM Growth selhalo, použit fallback.');
+      setStatus(`LLM Growth selhalo, použit fallback. ${e?.message||''}`.trim());
     }
-  })();
+  });
 };
 document.getElementById('runTrends').onclick=()=>{document.getElementById('kw').innerHTML=Studio.trendRadar().map(x=>`<div class='line'>${esc(x)}</div>`).join('');};
 
 document.getElementById('mineClips').onclick=()=>{
-  (async()=>{
+  runWithBusy('mineClips', async()=>{
     try{
       const s=readSettingsTab();
       const skillHints = s.skills.enabled ? [...(s.skills.selected||[]), s.skills.custom||''].filter(Boolean).join(', ') : '';
       const promptOverride = [s.prompts.growth||'', skillHints ? `Skills: ${skillHints}` : '', `Channel: ${s.channel.mode}`].filter(Boolean).join('\n');
       const out=await Studio.generateGrowthAndClips({
         transcript:Studio.state.timeline||'',
-        options:{temperature:s.algorithms.growthTemperature||0.7},
+        options:{temperature:s.algorithms.growthTemperature||0.7,apiToken:Studio.getApiAccessToken()},
         promptOverride
       });
       const c=(out.clips||[]).map((x,i)=>({hook:`${x.start} · ${x.hook || ('Hook #'+(i+1))}`,caption:x.reason||''}));
@@ -466,13 +492,13 @@ document.getElementById('mineClips').onclick=()=>{
         return;
       }
       throw new Error('No clips');
-    }catch{
+    }catch(e){
       const c=Studio.mineClips();
       document.getElementById('clipList').innerHTML=c.map(x=>`<div class='line'><b>${esc(x.hook)}</b><br><span class='mini'>${esc(x.caption)}</span></div>`).join('');
       updateKpis();
-      setStatus('LLM clipy selhaly, použit fallback.');
+      setStatus(`LLM clipy selhaly, použit fallback. ${e?.message||''}`.trim());
     }
-  })();
+  });
 };
 document.getElementById('thumbScore').onclick=()=>{document.getElementById('thumbScoreOut').textContent='Score: '+Studio.scoreThumb(document.getElementById('thumbText').value)+'/100';};
 document.getElementById('saveSettingsTab').onclick=()=>{readSettingsTab();setStatus('Nastavení projektu uloženo.');};
