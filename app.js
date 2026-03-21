@@ -21,6 +21,16 @@ const DEFAULT_SETTINGS = {
     audience: 'CZ',
     publishMode: 'manual'
   },
+  integrations: {
+    analyticsApiUrl: './api/analytics.php',
+    schedulerApiUrl: './api/scheduler.php',
+    youtubeChannelId: '',
+    spotifyShowId: ''
+  },
+  marketplace: {
+    installed: [],
+    customTemplates: []
+  },
   promptOptimizer: {
     enabled: true,
     tasks: {
@@ -70,6 +80,21 @@ function ensureSettingsShape(raw){
       mode: String(s.channel?.mode ?? base.channel.mode),
       audience: String(s.channel?.audience ?? base.channel.audience),
       publishMode: String(s.channel?.publishMode ?? base.channel.publishMode)
+    },
+    integrations: {
+      analyticsApiUrl: String(s.integrations?.analyticsApiUrl ?? base.integrations.analyticsApiUrl),
+      schedulerApiUrl: String(s.integrations?.schedulerApiUrl ?? base.integrations.schedulerApiUrl),
+      youtubeChannelId: String(s.integrations?.youtubeChannelId ?? base.integrations.youtubeChannelId),
+      spotifyShowId: String(s.integrations?.spotifyShowId ?? base.integrations.spotifyShowId)
+    },
+    marketplace: {
+      installed: Array.isArray(s.marketplace?.installed) ? s.marketplace.installed.map(x=>String(x)) : [],
+      customTemplates: Array.isArray(s.marketplace?.customTemplates) ? s.marketplace.customTemplates.map(t=>({
+        id: String(t?.id || `tpl-${Date.now().toString(36)}`),
+        name: String(t?.name || 'Custom Template'),
+        type: String(t?.type || 'titles'),
+        prompt: String(t?.prompt || '')
+      })) : []
     },
     promptOptimizer: {
       enabled: typeof s.promptOptimizer?.enabled === 'boolean' ? s.promptOptimizer.enabled : base.promptOptimizer.enabled,
@@ -358,6 +383,14 @@ function setApiAccessToken(token=''){
 function getProjectsApiUrl(){
   return (localStorage.getItem('eremstudio_projects_api_url') || './api/projects.php').trim();
 }
+function getAnalyticsApiUrl(){
+  const inSettings = String(state.settings?.integrations?.analyticsApiUrl || '').trim();
+  return inSettings || './api/analytics.php';
+}
+function getSchedulerApiUrl(){
+  const inSettings = String(state.settings?.integrations?.schedulerApiUrl || '').trim();
+  return inSettings || './api/scheduler.php';
+}
 function setProjectsApiUrl(url=''){
   const v=String(url||'').trim();
   if(v) localStorage.setItem('eremstudio_projects_api_url',v);
@@ -472,6 +505,96 @@ function runDuePublishJobs(nowIso=''){
   state.publishQueue=next;
   save();
   return {processed,total:next.length};
+}
+async function runDuePublishJobsOnServer(nowIso='', opts={}){
+  const apiUrl=String(opts.apiUrl || getSchedulerApiUrl()).trim();
+  const apiToken=String(opts.apiToken ?? getApiAccessToken()).trim();
+  const headers={'Content-Type':'application/json'};
+  if(apiToken) headers['X-API-Token']=apiToken;
+  const res=await fetch(apiUrl,{
+    method:'POST',
+    headers,
+    body:JSON.stringify({
+      action:'run_due',
+      nowIso: String(nowIso||''),
+      projectId: String(state._projectId || ''),
+      queue: listPublishQueue()
+    })
+  });
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok || data?.error) throw new Error(String(data?.error || `Scheduler API failed (${res.status})`));
+  const queue=Array.isArray(data?.queue) ? data.queue : [];
+  if(queue.length){
+    state.publishQueue=queue;
+    addAuditEvent('scheduler','Server scheduler run',{processed:Number(data?.processed||0)});
+    save();
+  }
+  return {processed:Number(data?.processed||0), total:Number(data?.total||queue.length)};
+}
+async function fetchAnalyticsSnapshot(range='30d', opts={}){
+  const apiUrl=String(opts.apiUrl || getAnalyticsApiUrl()).trim();
+  const apiToken=String(opts.apiToken ?? getApiAccessToken()).trim();
+  const headers={'Content-Type':'application/json'};
+  if(apiToken) headers['X-API-Token']=apiToken;
+  const res=await fetch(apiUrl,{
+    method:'POST',
+    headers,
+    body:JSON.stringify({
+      action:'snapshot',
+      range:String(range||'30d'),
+      projectId:String(state._projectId||''),
+      channelProfile: state.channelProfile || {},
+      generationHistory: state.generationHistory || {}
+    })
+  });
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok || data?.error) throw new Error(String(data?.error || `Analytics API failed (${res.status})`));
+  state.analyticsSnapshot = {
+    ts:new Date().toISOString(),
+    range:String(range||'30d'),
+    ...data
+  };
+  addAuditEvent('analytics','Analytics snapshot refreshed',{range:String(range||'30d')});
+  save();
+  return state.analyticsSnapshot;
+}
+function getMarketplaceTemplates(){
+  return [
+    {
+      id:'tpl-cz-viral-titles',
+      name:'CZ Viral Titles Pack',
+      type:'titles',
+      prompt:'Použij agresivnější hook, jasný benefit a 2 trendy keywordy v každém title. Výstup pouze JSON pole.'
+    },
+    {
+      id:'tpl-clean-descriptions',
+      name:'Clean Description Pack',
+      type:'descriptions',
+      prompt:'Piš čistě, bez výplně, first 2 lines sales hook, potom přesná timeline a CTA.'
+    },
+    {
+      id:'tpl-shorts-gold',
+      name:'Shorts Gold Hunter',
+      type:'growth',
+      prompt:'Prioritizuj momenty s konfliktem, překvapením nebo konkrétní rychlou radou. U každého klipu dej silný overlay hook.'
+    }
+  ];
+}
+function installMarketplaceTemplate(templateId=''){
+  const id=String(templateId||'').trim();
+  const tpl=getMarketplaceTemplates().find(x=>x.id===id);
+  if(!tpl) return false;
+  const s=ensureSettingsShape(state.settings);
+  if(!(s.marketplace.installed||[]).includes(id)){
+    s.marketplace.installed=[...(s.marketplace.installed||[]),id];
+  }
+  if(tpl.type==='titles') s.prompts.titles = [s.prompts.titles, tpl.prompt].filter(Boolean).join('\n\n');
+  if(tpl.type==='descriptions') s.prompts.descriptions = [s.prompts.descriptions, tpl.prompt].filter(Boolean).join('\n\n');
+  if(tpl.type==='growth') s.prompts.growth = [s.prompts.growth, tpl.prompt].filter(Boolean).join('\n\n');
+  state.settings=s;
+  addAuditEvent('marketplace','Template installed',{templateId:id});
+  save();
+  return true;
 }
 function setApprovalState(approvalState='draft', note=''){
   const allowed=new Set(['draft','review','approved']);
@@ -936,7 +1059,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,setApprovalState,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,getMarketplaceTemplates,installMarketplaceTemplate,setApprovalState,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)

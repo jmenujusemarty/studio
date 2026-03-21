@@ -133,3 +133,13 @@ test('approval state and channel profile helpers update state', () => {
   assert.equal(profile.tone, 'bold');
   assert.ok(profile.successRate >= 0);
 });
+
+test('marketplace template installs into prompt settings', () => {
+  const Studio = loadStudio();
+  const before = Studio.state.settings.prompts.titles;
+  const ok = Studio.installMarketplaceTemplate('tpl-cz-viral-titles');
+  assert.equal(ok, true);
+  const after = Studio.state.settings.prompts.titles;
+  assert.notEqual(after, before);
+  assert.ok(after.includes('agresivnější hook'));
+});

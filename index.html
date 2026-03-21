@@ -159,6 +159,12 @@
       <div class="actions"><button class="btn s" id="saveApprovalState">Uložit approval stav</button></div>
       <h3>Audit Log</h3>
       <div id="auditLogList"></div>
+      <h3>Analytics Hub</h3>
+      <div class="row">
+        <div><label>Range</label><select id="analyticsRange"><option value="7d">7d</option><option value="30d" selected>30d</option><option value="90d">90d</option></select></div>
+        <div class="actions"><button class="btn s" id="refreshAnalytics">Načíst analytics</button><button class="btn s" id="runServerSchedulerNow">Scheduler server</button></div>
+      </div>
+      <div id="analyticsHubBox" class="history-card"></div>
     </div>
 
     <div id="settings" class="pane" role="tabpanel" aria-labelledby="tab-settings">
@@ -168,6 +174,8 @@
           <button class="btn s settings-menu-btn" data-sec="skills">Skills</button>
           <button class="btn s settings-menu-btn" data-sec="algorithms">Algoritmy</button>
           <button class="btn s settings-menu-btn" data-sec="channel">Kanál</button>
+          <button class="btn s settings-menu-btn" data-sec="integrations">Integrace</button>
+          <button class="btn s settings-menu-btn" data-sec="marketplace">Marketplace</button>
           <button class="btn s settings-menu-btn" data-sec="presets">Presety</button>
           <button class="btn s settings-menu-btn" data-sec="optimizer">Optimizer</button>
         </aside>
@@ -233,6 +241,19 @@
               <button class="btn s" id="syncProjectServer">Sync projekt na server</button>
               <button class="btn s" id="pullProjectsServer">Načíst projekty ze serveru</button>
             </div>
+          </section>
+          <section class="settings-section" data-sec="integrations">
+            <h3>Integrace</h3>
+            <label>Analytics API URL</label><input id="setAnalyticsApiUrl" placeholder="./api/analytics.php">
+            <label>Scheduler API URL</label><input id="setSchedulerApiUrl" placeholder="./api/scheduler.php">
+            <div class="row">
+              <div><label>YouTube Channel ID</label><input id="setYoutubeChannelId" placeholder="UC..."></div>
+              <div><label>Spotify Show ID</label><input id="setSpotifyShowId" placeholder="show-id"></div>
+            </div>
+          </section>
+          <section class="settings-section" data-sec="marketplace">
+            <h3>Prompt/Skill Marketplace</h3>
+            <div id="marketplaceList" class="history-card"></div>
           </section>
           <section class="settings-section" data-sec="presets">
             <h3>Presety</h3>
@@ -498,6 +519,30 @@ function renderChannelProfile(){
   document.getElementById('approvalState').value=appr.state || 'draft';
   document.getElementById('approvalNote').value=appr.note || '';
 }
+function renderAnalyticsHub(){
+  const box=document.getElementById('analyticsHubBox');
+  const a=Studio.state.analyticsSnapshot || null;
+  if(!box) return;
+  if(!a || !a.kpi){
+    box.innerHTML='<div class="mini">Analytics snapshot zatím není načten.</div>';
+    return;
+  }
+  const k=a.kpi||{};
+  const series=Array.isArray(a.series)?a.series:[];
+  box.innerHTML=[
+    `<div class="line"><b>Range:</b> ${esc(k.range||'-')} · <b>Gen:</b> ${esc(String(k.total_generations||0))}</div>`,
+    `<div class="line"><b>Est. CTR:</b> ${esc(String(k.estimated_ctr||0))}% · <b>Est. Retention:</b> ${esc(String(k.estimated_retention||0))}%</div>`,
+    `<div class="line"><b>Avg Title Score:</b> ${esc(String(k.avg_title_score||0))}</div>`,
+    `<div class="mini">${series.slice(-6).map(x=>`${esc(x.label)} CTR ${esc(String(x.ctr))}% / RET ${esc(String(x.retention))}%`).join(' | ') || 'Bez series dat.'}</div>`
+  ].join('');
+}
+function renderMarketplace(){
+  const box=document.getElementById('marketplaceList');
+  if(!box) return;
+  const installed = new Set((Studio.state.settings?.marketplace?.installed)||[]);
+  const list=Studio.getMarketplaceTemplates();
+  box.innerHTML=list.map(t=>`<div class="line"><b>${esc(t.name)}</b> · ${esc(t.type)} ${installed.has(t.id)?'<span class="mini">(installed)</span>':''} <button class="btn s install-marketplace" data-id="${esc(t.id)}">Instalovat</button></div>`).join('');
+}
 function refreshChannelProfile(){
   Studio.recomputeChannelProfile();
   renderChannelProfile();
@@ -655,6 +700,10 @@ function renderSettingsTab(){
   document.getElementById('setChannelMode').value=s.channel.mode||'both';
   document.getElementById('setAudience').value=s.channel.audience||'CZ';
   document.getElementById('setPublishMode').value=s.channel.publishMode||'manual';
+  document.getElementById('setAnalyticsApiUrl').value=s.integrations.analyticsApiUrl||'';
+  document.getElementById('setSchedulerApiUrl').value=s.integrations.schedulerApiUrl||'';
+  document.getElementById('setYoutubeChannelId').value=s.integrations.youtubeChannelId||'';
+  document.getElementById('setSpotifyShowId').value=s.integrations.spotifyShowId||'';
   const t=s.promptOptimizer?.tasks||{};
   const row=(name,k)=>`${name}: uses ${k?.uses||0}, ok ${k?.ok||0}, fail ${k?.fail||0}, avg ${Number(k?.avgScore||0).toFixed(1)}`;
   document.getElementById('optimizerStats').innerHTML=[
@@ -685,6 +734,12 @@ function readSettingsTab(){
       mode:document.getElementById('setChannelMode').value,
       audience:document.getElementById('setAudience').value,
       publishMode:document.getElementById('setPublishMode').value
+    },
+    integrations:{
+      analyticsApiUrl:document.getElementById('setAnalyticsApiUrl').value,
+      schedulerApiUrl:document.getElementById('setSchedulerApiUrl').value,
+      youtubeChannelId:document.getElementById('setYoutubeChannelId').value,
+      spotifyShowId:document.getElementById('setSpotifyShowId').value
     }
   });
   Studio.state.settings=next;
@@ -1329,6 +1384,20 @@ document.getElementById('toolCatalog').onclick=(e)=>{
   renderToolCatalog();
   setStatus(`Kontrakt uložen pro ${toolId}.`);
 };
+document.getElementById('marketplaceList').addEventListener('click',(e)=>{
+  const btn=e.target.closest('.install-marketplace');
+  if(!btn) return;
+  const id=btn.getAttribute('data-id');
+  if(!id) return;
+  const ok=Studio.installMarketplaceTemplate(id);
+  if(ok){
+    renderSettingsTab();
+    renderMarketplace();
+    setStatus(`Marketplace template nainstalován: ${id}.`);
+  }else{
+    setStatus(`Instalace selhala: ${id}.`,'error');
+  }
+});
 for(const b of document.querySelectorAll('.settings-menu-btn')){
   b.addEventListener('click',()=>activateSettingsSection(b.dataset.sec||'prompts'));
 }
@@ -1424,6 +1493,23 @@ document.getElementById('runSchedulerNow').onclick=()=>{
   renderAuditLog();
   setStatus(`Scheduler zpracoval ${out.processed} jobů.`);
 };
+document.getElementById('runServerSchedulerNow').onclick=()=>{
+  runWithBusy('runServerSchedulerNow', async()=>{
+    const out=await Studio.runDuePublishJobsOnServer();
+    renderPublishQueue();
+    renderAuditLog();
+    setStatus(`Server scheduler zpracoval ${out.processed} jobů.`);
+  });
+};
+document.getElementById('refreshAnalytics').onclick=()=>{
+  runWithBusy('refreshAnalytics', async()=>{
+    const range=document.getElementById('analyticsRange').value || '30d';
+    await Studio.fetchAnalyticsSnapshot(range);
+    renderAnalyticsHub();
+    renderAuditLog();
+    setStatus('Analytics snapshot načten.');
+  });
+};
 document.getElementById('recomputeProfile').onclick=()=>{
   refreshChannelProfile();
   setStatus('Channel profile přepočítán.');
@@ -1489,7 +1575,7 @@ document.addEventListener('keydown',(e)=>{
   }
 });
 
-renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderABBoard();renderPublishQueue();renderChannelProfile();renderAuditLog();renderErrorPanel();
+renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderABBoard();renderPublishQueue();renderChannelProfile();renderAuditLog();renderAnalyticsHub();renderMarketplace();renderErrorPanel();
 {
   const m=String(location.hash||'').match(/^#settings\/([a-z-]+)/i);
   if(m){
