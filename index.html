@@ -10,6 +10,7 @@
 .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .tab{padding:8px 12px;border-radius:999px;background:#fff;border:1px solid #dbe2ef;cursor:pointer;font-weight:600}
 .tab.active{background:rgba(0,122,255,.1);color:#007AFF}
+.tab:focus-visible,.btn:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid #007AFF;outline-offset:2px}
 .pane{display:none}.pane.active{display:block}
 .project-item{padding:10px;border-bottom:1px dashed #dbe2ef}
 .project-item b{display:block;margin-bottom:3px}
@@ -39,6 +40,12 @@
 .history-card{border:1px dashed #d0d7e2;border-radius:10px;padding:8px;margin-top:10px}
 .ab-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .ab-col{border:1px solid #dbe2ef;border-radius:10px;padding:8px;background:#fff}
+.status-wrap{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.status-badge{display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase}
+.status-badge.info{background:#eaf2ff;color:#175cd3}
+.status-badge.success{background:#ecfdf3;color:#067647}
+.status-badge.warning{background:#fffaeb;color:#b54708}
+.status-badge.error{background:#fef3f2;color:#b42318}
 @media(max-width:900px){.tool-grid{grid-template-columns:1fr}}
 @media(max-width:900px){.ab-grid{grid-template-columns:1fr}}
 @media(max-width:900px){.settings-layout{grid-template-columns:1fr}.settings-nav{position:static;flex-direction:row;flex-wrap:wrap}}
@@ -75,7 +82,11 @@
       <button class="tab" role="tab" aria-selected="false" aria-controls="settings" id="tab-settings" data-pane="settings">Nastavení</button>
       <button class="tab" role="tab" aria-selected="false" aria-controls="tools" id="tab-tools" data-pane="tools">Nástroje</button>
     </div>
-    <div id="statusMsg" class="mini" aria-live="polite"></div>
+    <div class="status-wrap" aria-live="polite">
+      <span id="statusBadge" class="status-badge info">INFO</span>
+      <div id="statusMsg" class="mini"></div>
+      <span class="mini">⌘/Ctrl+S uložit · ⌘/Ctrl+Enter spustit akci</span>
+    </div>
     <div id="progressWrap" class="progress-wrap" aria-live="polite">
       <div id="progressText" class="mini"></div>
       <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
@@ -92,28 +103,28 @@
     <div id="titles" class="pane" role="tabpanel" aria-labelledby="tab-titles">
       <div class="actions"><button class="btn p" id="refreshTrends">Načíst denní trendy CZ+WORLD</button><button class="btn p" id="genTitles">Navrhnout 10 názvů</button></div>
       <div id="trendMeta" class="line">Trend snapshot: -</div>
-      <div id="titleList"></div>
+      <div id="titleList" role="region" aria-label="Výstup title variant"></div>
       <div id="titlesHistory" class="history-card"></div>
     </div>
 
     <div id="descs" class="pane" role="tabpanel" aria-labelledby="tab-descs">
       <div class="actions"><button class="btn p" id="genDescs">Vygenerovat Smart Description</button></div>
-      <label>YouTube popisek</label><textarea id="ytOut"></textarea>
-      <label>Spotify popisek (HTML)</label><textarea id="spOut"></textarea>
+      <label>YouTube popisek</label><textarea id="ytOut" aria-describedby="statusMsg"></textarea>
+      <label>Spotify popisek (HTML)</label><textarea id="spOut" aria-describedby="statusMsg"></textarea>
       <div class="actions"><button class="btn s" id="copyY2">Copy YouTube</button><button class="btn s" id="copyS2">Copy Spotify</button></div>
       <div id="descsHistory" class="history-card"></div>
     </div>
 
     <div id="growth" class="pane" role="tabpanel" aria-labelledby="tab-growth">
       <div class="actions"><button class="btn p" id="runRetention">Retention debugger</button><button class="btn p" id="runTrends">Trend radar</button></div>
-      <div id="retention"></div>
+      <div id="retention" role="region" aria-label="Retention výstup"></div>
       <div id="kw"></div>
       <div id="outliers"></div>
     </div>
 
     <div id="clips" class="pane" role="tabpanel" aria-labelledby="tab-clips">
       <div class="actions"><button class="btn p" id="mineClips">Vytěžit 5 clipů</button></div>
-      <div id="clipList"></div>
+      <div id="clipList" role="region" aria-label="Clip kandidáti"></div>
       <div id="clipsHistory" class="history-card"></div>
       <label>Thumbnail text</label><input id="thumbText" placeholder="např. TOTÁLNÍ CHAOS">
       <div class="actions"><button class="btn s" id="thumbScore">Spočítat thumbnail score</button></div>
@@ -293,7 +304,21 @@
 <script>
 Studio.bindCore();
 const esc=(v)=>String(v??'').replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-function setStatus(msg){ document.getElementById('statusMsg').textContent = msg || ''; }
+function _statusTypeFromMessage(msg=''){
+  const t=String(msg||'').toLowerCase();
+  if(/fallback/.test(t)) return 'warning';
+  if(/selhal|chyba|neplat|nenalezen/.test(t)) return 'error';
+  if(/hotov|vygener|uložen|načten|připraven|zkopírov|vrácen/.test(t)) return 'success';
+  return 'info';
+}
+function setStatus(msg, type=''){
+  const m=String(msg||'');
+  const badge=document.getElementById('statusBadge');
+  const kind=type || _statusTypeFromMessage(m);
+  document.getElementById('statusMsg').textContent = m;
+  badge.className=`status-badge ${kind}`;
+  badge.textContent=kind.toUpperCase();
+}
 function setProgress(active=false, text='', step=0, total=0){
   const wrap=document.getElementById('progressWrap');
   const bar=document.getElementById('progressBar');
@@ -1205,6 +1230,38 @@ window.addEventListener('hashchange',()=>{
   if(!m) return;
   activeSettingsSection=m[1];
   activateTab(document.getElementById('tab-settings'));
+});
+document.addEventListener('keydown',(e)=>{
+  const mod=e.metaKey || e.ctrlKey;
+  if(!mod) return;
+  const activeTab=document.querySelector('.tab.active')?.dataset?.pane || 'core';
+  if(e.key.toLowerCase()==='s'){
+    e.preventDefault();
+    if(activeTab==='settings') document.getElementById('saveSettingsTab').click();
+    else document.getElementById('saveCore').click();
+    return;
+  }
+  if(e.key==='Enter'){
+    e.preventDefault();
+    const actionByPane={
+      core:'saveCore',
+      titles:'genTitles',
+      descs:'genDescs',
+      growth:'runRetention',
+      clips:'mineClips',
+      abpublish:'buildPublishPackage',
+      settings:'saveSettingsTab'
+    };
+    const id=actionByPane[activeTab];
+    if(id && document.getElementById(id)) document.getElementById(id).click();
+    return;
+  }
+  if(/^[1-8]$/.test(e.key)){
+    e.preventDefault();
+    const tabs=[...document.querySelectorAll('.tab')];
+    const idx=Number(e.key)-1;
+    if(tabs[idx]) activateTab(tabs[idx]);
+  }
 });
 
 renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderABBoard();
