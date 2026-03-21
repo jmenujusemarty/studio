@@ -31,7 +31,14 @@
 .progress-wrap.active{display:block}
 .progress-track{height:8px;border-radius:999px;background:#e5e7eb;overflow:hidden}
 .progress-bar{height:100%;width:0;background:#007AFF;transition:width .25s ease}
+.settings-layout{display:grid;grid-template-columns:220px 1fr;gap:14px}
+.settings-nav{display:flex;flex-direction:column;gap:6px;position:sticky;top:84px;height:fit-content}
+.settings-nav .btn{justify-content:flex-start;text-align:left}
+.settings-section{display:none}
+.settings-section.active{display:block}
+.history-card{border:1px dashed #d0d7e2;border-radius:10px;padding:8px;margin-top:10px}
 @media(max-width:900px){.tool-grid{grid-template-columns:1fr}}
+@media(max-width:900px){.settings-layout{grid-template-columns:1fr}.settings-nav{position:static;flex-direction:row;flex-wrap:wrap}}
 </style></head><body>
 <nav class="nav"><div class="brand">erem Studio</div><a class="active" href="./">Studio</a><button class="btn s" id="openSettings">Nastavení API</button></nav>
 <main class="wrap"><h1 class="page-title">erem Video Studio</h1><p class="page-sub">Přehledný workspace: projekty, title engine, popisky, growth i clipy na jedné stránce.</p>
@@ -82,6 +89,7 @@
       <div class="actions"><button class="btn p" id="refreshTrends">Načíst denní trendy CZ+WORLD</button><button class="btn p" id="genTitles">Navrhnout 10 názvů</button></div>
       <div id="trendMeta" class="line">Trend snapshot: -</div>
       <div id="titleList"></div>
+      <div id="titlesHistory" class="history-card"></div>
     </div>
 
     <div id="descs" class="pane" role="tabpanel" aria-labelledby="tab-descs">
@@ -89,6 +97,7 @@
       <label>YouTube popisek</label><textarea id="ytOut"></textarea>
       <label>Spotify popisek (HTML)</label><textarea id="spOut"></textarea>
       <div class="actions"><button class="btn s" id="copyY2">Copy YouTube</button><button class="btn s" id="copyS2">Copy Spotify</button></div>
+      <div id="descsHistory" class="history-card"></div>
     </div>
 
     <div id="growth" class="pane" role="tabpanel" aria-labelledby="tab-growth">
@@ -101,87 +110,108 @@
     <div id="clips" class="pane" role="tabpanel" aria-labelledby="tab-clips">
       <div class="actions"><button class="btn p" id="mineClips">Vytěžit 5 clipů</button></div>
       <div id="clipList"></div>
+      <div id="clipsHistory" class="history-card"></div>
       <label>Thumbnail text</label><input id="thumbText" placeholder="např. TOTÁLNÍ CHAOS">
       <div class="actions"><button class="btn s" id="thumbScore">Spočítat thumbnail score</button></div>
       <div id="thumbScoreOut" class="line">Score: -</div>
     </div>
 
     <div id="settings" class="pane" role="tabpanel" aria-labelledby="tab-settings">
-      <h3>Prompty</h3>
-      <label>Titles prompt override</label><textarea id="setPromptTitles" placeholder="Volitelné. Přepíše default prompt pro názvy."></textarea>
-      <div id="setPromptTitlesErr" class="field-hint"></div>
-      <label>Description prompt override</label><textarea id="setPromptDescriptions" placeholder="Volitelné. Přepíše default prompt pro popisky."></textarea>
-      <div id="setPromptDescriptionsErr" class="field-hint"></div>
-      <label>Growth prompt override</label><textarea id="setPromptGrowth" placeholder="Volitelné. Přepíše default prompt pro growth/clipy."></textarea>
-      <div id="setPromptGrowthErr" class="field-hint"></div>
-
-      <h3>Skills</h3>
-      <div class="actions">
-        <label><input type="checkbox" id="setSkillsEnabled"> Zapnout skill filtry</label>
-      </div>
-      <label>Skills (čárkou)</label><input id="setSkillsSelected" placeholder="seo, curiosity-gap, high-stakes">
-      <label>Custom skill instrukce</label><textarea id="setSkillsCustom" placeholder="Volitelné interní instrukce pro LLM."></textarea>
-
-      <h3>Algoritmy</h3>
-      <div class="row">
-        <div><label>Title temperature</label><input id="setTitleTemp" type="number" min="0" max="1.5" step="0.1"></div>
-        <div><label>Description temperature</label><input id="setDescTemp" type="number" min="0" max="1.5" step="0.1"></div>
-      </div>
-      <div class="row">
-        <div><label>Growth temperature</label><input id="setGrowthTemp" type="number" min="0" max="1.5" step="0.1"></div>
-        <div><label>Počet title variant</label><input id="setTitleCount" type="number" min="1" max="30" step="1"></div>
-      </div>
-
-      <h3>Výběr kanálu</h3>
-      <div class="row">
+      <div class="settings-layout">
+        <aside class="settings-nav">
+          <button class="btn s settings-menu-btn" data-sec="prompts">Prompty</button>
+          <button class="btn s settings-menu-btn" data-sec="skills">Skills</button>
+          <button class="btn s settings-menu-btn" data-sec="algorithms">Algoritmy</button>
+          <button class="btn s settings-menu-btn" data-sec="channel">Kanál</button>
+          <button class="btn s settings-menu-btn" data-sec="presets">Presety</button>
+          <button class="btn s settings-menu-btn" data-sec="optimizer">Optimizer</button>
+        </aside>
         <div>
-          <label>Channel mode</label>
-          <select id="setChannelMode">
-            <option value="youtube">YouTube</option>
-            <option value="spotify">Spotify</option>
-            <option value="both">Both</option>
-            <option value="auto">Auto</option>
-          </select>
+          <section class="settings-section active" data-sec="prompts">
+            <h3>Prompty</h3>
+            <label>Titles prompt override</label><textarea id="setPromptTitles" placeholder="Volitelné. Přepíše default prompt pro názvy."></textarea>
+            <div id="setPromptTitlesErr" class="field-hint"></div>
+            <label>Description prompt override</label><textarea id="setPromptDescriptions" placeholder="Volitelné. Přepíše default prompt pro popisky."></textarea>
+            <div id="setPromptDescriptionsErr" class="field-hint"></div>
+            <label>Growth prompt override</label><textarea id="setPromptGrowth" placeholder="Volitelné. Přepíše default prompt pro growth/clipy."></textarea>
+            <div id="setPromptGrowthErr" class="field-hint"></div>
+          </section>
+          <section class="settings-section" data-sec="skills">
+            <h3>Skills</h3>
+            <div class="actions">
+              <label><input type="checkbox" id="setSkillsEnabled"> Zapnout skill filtry</label>
+            </div>
+            <label>Skills (čárkou)</label><input id="setSkillsSelected" placeholder="seo, curiosity-gap, high-stakes">
+            <label>Custom skill instrukce</label><textarea id="setSkillsCustom" placeholder="Volitelné interní instrukce pro LLM."></textarea>
+          </section>
+          <section class="settings-section" data-sec="algorithms">
+            <h3>Algoritmy</h3>
+            <div class="row">
+              <div><label>Title temperature</label><input id="setTitleTemp" type="number" min="0" max="1.5" step="0.1"></div>
+              <div><label>Description temperature</label><input id="setDescTemp" type="number" min="0" max="1.5" step="0.1"></div>
+            </div>
+            <div class="row">
+              <div><label>Growth temperature</label><input id="setGrowthTemp" type="number" min="0" max="1.5" step="0.1"></div>
+              <div><label>Počet title variant</label><input id="setTitleCount" type="number" min="1" max="30" step="1"></div>
+            </div>
+          </section>
+          <section class="settings-section" data-sec="channel">
+            <h3>Výběr kanálu</h3>
+            <div class="row">
+              <div>
+                <label>Channel mode</label>
+                <select id="setChannelMode">
+                  <option value="youtube">YouTube</option>
+                  <option value="spotify">Spotify</option>
+                  <option value="both">Both</option>
+                  <option value="auto">Auto</option>
+                </select>
+              </div>
+              <div>
+                <label>Audience</label>
+                <select id="setAudience">
+                  <option value="CZ">CZ</option>
+                  <option value="EN">EN</option>
+                </select>
+              </div>
+            </div>
+            <label>Publish mode</label>
+            <select id="setPublishMode">
+              <option value="manual">Manual</option>
+              <option value="auto">Auto</option>
+            </select>
+            <div class="actions">
+              <button class="btn s" id="resetSettingsTab">Reset default</button>
+              <button class="btn p" id="saveSettingsTab">Uložit nastavení projektu</button>
+            </div>
+          </section>
+          <section class="settings-section" data-sec="presets">
+            <h3>Presety</h3>
+            <label>Název presetu</label><input id="presetName" placeholder="např. YouTube CZ CTR">
+            <div class="actions">
+              <button class="btn s" id="savePreset">Uložit preset</button>
+              <button class="btn s" id="loadPreset">Načíst preset</button>
+              <button class="btn s" id="deletePreset">Smazat preset</button>
+            </div>
+            <label>Dostupné presety</label>
+            <select id="presetSelect"></select>
+            <div class="actions">
+              <button class="btn s" id="exportSettingsJson">Export JSON</button>
+              <input id="importSettingsFile" type="file" accept="application/json" />
+              <button class="btn s" id="importSettingsJson">Import JSON</button>
+            </div>
+          </section>
+          <section class="settings-section" data-sec="optimizer">
+            <h3>Auto Prompt Optimizer</h3>
+            <div id="optimizerStats" class="mini"></div>
+            <div class="actions">
+              <button class="btn s" id="resetOptimizerStats">Reset optimizer</button>
+              <button class="btn s" id="exportOptimizerJson">Export optimizer JSON</button>
+              <input id="importOptimizerFile" type="file" accept="application/json" />
+              <button class="btn s" id="importOptimizerJson">Import optimizer JSON</button>
+            </div>
+          </section>
         </div>
-        <div>
-          <label>Audience</label>
-          <select id="setAudience">
-            <option value="CZ">CZ</option>
-            <option value="EN">EN</option>
-          </select>
-        </div>
-      </div>
-      <label>Publish mode</label>
-      <select id="setPublishMode">
-        <option value="manual">Manual</option>
-        <option value="auto">Auto</option>
-      </select>
-
-      <div class="actions">
-        <button class="btn s" id="resetSettingsTab">Reset default</button>
-        <button class="btn p" id="saveSettingsTab">Uložit nastavení projektu</button>
-      </div>
-      <h3>Presety</h3>
-      <label>Název presetu</label><input id="presetName" placeholder="např. YouTube CZ CTR">
-      <div class="actions">
-        <button class="btn s" id="savePreset">Uložit preset</button>
-        <button class="btn s" id="loadPreset">Načíst preset</button>
-        <button class="btn s" id="deletePreset">Smazat preset</button>
-      </div>
-      <label>Dostupné presety</label>
-      <select id="presetSelect"></select>
-      <div class="actions">
-        <button class="btn s" id="exportSettingsJson">Export JSON</button>
-        <input id="importSettingsFile" type="file" accept="application/json" />
-        <button class="btn s" id="importSettingsJson">Import JSON</button>
-      </div>
-      <h3>Auto Prompt Optimizer</h3>
-      <div id="optimizerStats" class="mini"></div>
-      <div class="actions">
-        <button class="btn s" id="resetOptimizerStats">Reset optimizer</button>
-        <button class="btn s" id="exportOptimizerJson">Export optimizer JSON</button>
-        <input id="importOptimizerFile" type="file" accept="application/json" />
-        <button class="btn s" id="importOptimizerJson">Import optimizer JSON</button>
       </div>
     </div>
 
@@ -307,6 +337,42 @@ function validatePromptFields(){
   validatePromptField('setPromptTitles','setPromptTitlesErr');
   validatePromptField('setPromptDescriptions','setPromptDescriptionsErr');
   validatePromptField('setPromptGrowth','setPromptGrowthErr');
+}
+let activeSettingsSection='prompts';
+function activateSettingsSection(sec='prompts'){
+  activeSettingsSection=sec;
+  for(const el of document.querySelectorAll('.settings-section')){
+    el.classList.toggle('active', el.dataset.sec===sec);
+  }
+  for(const b of document.querySelectorAll('.settings-menu-btn')){
+    const on=b.dataset.sec===sec;
+    b.style.background=on?'rgba(0,122,255,.1)':'#fff';
+    b.style.color=on?'#007AFF':'';
+  }
+  if(document.getElementById('tab-settings')?.classList.contains('active')){
+    history.replaceState(null,'',`#settings/${sec}`);
+  }
+}
+function fmtTs(iso=''){
+  try{return new Date(String(iso||'')).toLocaleString('cs-CZ');}catch{return String(iso||'');}
+}
+function renderHistoryBlock(kind, targetId){
+  const list=Studio.listGenerationHistory(kind)||[];
+  const target=document.getElementById(targetId);
+  if(!target) return;
+  if(!list.length){
+    target.innerHTML=`<div class="mini">Historie ${kind}: zatím prázdná.</div>`;
+    return;
+  }
+  target.innerHTML=[
+    `<div class="mini"><b>Historie ${kind}</b></div>`,
+    ...list.slice(0,5).map(row=>`<div class="line"><b>${fmtTs(row.ts)}</b> · ${esc(row.meta?.source||'llm')} · ${esc(row.meta?.mode||'')} <button class="btn s rollback-history" data-kind="${esc(kind)}" data-id="${esc(row.id)}">Vrátit</button></div>`)
+  ].join('');
+}
+function renderAllHistory(){
+  renderHistoryBlock('titles','titlesHistory');
+  renderHistoryBlock('descriptions','descsHistory');
+  renderHistoryBlock('clips','clipsHistory');
 }
 const ONBOARDING_KEY='eremstudio_onboarding_done_v1';
 const onboardingState={step:0};
@@ -517,6 +583,7 @@ window.selectP=(id)=>{
   renderProjects();
   renderOutliers();
   updateKpis();
+  renderAllHistory();
   setStatus('Projekt přepnut.');
 }
 window.delP=(id)=>{
@@ -527,6 +594,7 @@ window.delP=(id)=>{
   renderProjects();
   fillOutputs();
   updateKpis();
+  renderAllHistory();
   setStatus('Projekt byl smazán.');
 }
 
@@ -551,6 +619,9 @@ function activateTab(tab){
   tab.classList.add('active');
   tab.setAttribute('aria-selected','true');
   document.getElementById(tab.dataset.pane).classList.add('active');
+  if(tab.dataset.pane==='settings'){
+    activateSettingsSection(activeSettingsSection);
+  }
 }
 
 for(const t of document.querySelectorAll('.tab')){
@@ -697,8 +768,10 @@ document.getElementById('genTitles').onclick=()=>{
       Studio.state.settings=Studio.updatePromptOptimizer('titles', Studio.state.settings, ctx, {ok:true,titles:out});
       Studio.save();
       Studio.state.smartTitles=out;Studio.state.titles=out.map(x=>x.title);Studio.save();
+      Studio.addGenerationSnapshot('titles',{items:out},{source:'llm',mode:s.channel.mode});
       document.getElementById('titleList').innerHTML=out.map((x,i)=>`<div class='line'><b>${i+1}.</b> ${esc(x.title)} · ${esc(x.category)} · ${x.score}/100</div>`).join('');
       updateKpis();
+      renderAllHistory();
       setProgress(true,'Titles: hotovo',4,4);
       setStatus('Strategické názvy vygenerovány přes LLM.');
     }catch(e){
@@ -707,8 +780,10 @@ document.getElementById('genTitles').onclick=()=>{
       Studio.save();
       const out=Studio.trendDrivenTitleVariants(Studio.state.episode||'', Studio.state.timeline||'');
       Studio.state.smartTitles=out;Studio.state.titles=out.map(x=>x.title);Studio.save();
+      Studio.addGenerationSnapshot('titles',{items:out},{source:'fallback',mode:s.channel.mode});
       document.getElementById('titleList').innerHTML=out.map((x,i)=>`<div class='line'><b>${i+1}.</b> ${esc(x.title)} · fallback · ${x.score}/100</div>`).join('');
       updateKpis();
+      renderAllHistory();
       setProgress(true,'Titles: fallback hotov',4,4);
       setStatus(`LLM titles selhaly, použit fallback. ${e?.message||''}`.trim());
     }
@@ -735,6 +810,7 @@ document.getElementById('genDescs').onclick=()=>{
       });
       Studio.state.settings=Studio.updatePromptOptimizer('descriptions', Studio.state.settings, ctx, {ok:true,...out});
       Studio.save();
+      Studio.addGenerationSnapshot('descriptions',{youtube_description:out.youtube_description,spotify_html:out.spotify_html},{source:'llm',mode:s.channel.mode});
       setProgress(true,'Popisky: renderuji výstupy',3,4);
       if(s.channel.mode==='youtube'){
         document.getElementById('ytOut').value=out.youtube_description || Studio.ytText();
@@ -744,6 +820,7 @@ document.getElementById('genDescs').onclick=()=>{
         document.getElementById('ytOut').value=out.youtube_description || Studio.ytText();
         document.getElementById('spOut').value=out.spotify_html || Studio.spText();
       }
+      renderAllHistory();
       setProgress(true,'Popisky: hotovo',4,4);
       setStatus('Popisky vygenerovány přes LLM.');
     }catch(e){
@@ -751,6 +828,8 @@ document.getElementById('genDescs').onclick=()=>{
       Studio.state.settings=Studio.updatePromptOptimizer('descriptions', Studio.state.settings, ctx, {ok:false});
       Studio.save();
       fillOutputs();
+      Studio.addGenerationSnapshot('descriptions',{youtube_description:document.getElementById('ytOut').value,spotify_html:document.getElementById('spOut').value},{source:'fallback',mode:s.channel.mode});
+      renderAllHistory();
       setProgress(true,'Popisky: fallback hotov',4,4);
       setStatus(`LLM popisky selhaly, použit fallback. ${e?.message||''}`.trim());
     }
@@ -818,8 +897,10 @@ document.getElementById('mineClips').onclick=()=>{
       if(c.length){
         setProgress(true,'Clipy: renderuji výstupy',3,4);
         Studio.state.clips=c;Studio.save();
+        Studio.addGenerationSnapshot('clips',{clips:c},{source:'llm',mode:s.channel.mode});
         document.getElementById('clipList').innerHTML=c.map(x=>`<div class='line'><b>${esc(x.hook)}</b><br><span class='mini'>${esc(x.caption)}</span></div>`).join('');
         updateKpis();
+        renderAllHistory();
         setProgress(true,'Clipy: hotovo',4,4);
         setStatus('Clip kandidáti vygenerováni přes LLM.');
         return;
@@ -830,8 +911,10 @@ document.getElementById('mineClips').onclick=()=>{
       Studio.state.settings=Studio.updatePromptOptimizer('growth', Studio.state.settings, ctx, {ok:false});
       Studio.save();
       const c=Studio.mineClips();
+      Studio.addGenerationSnapshot('clips',{clips:c},{source:'fallback',mode:s.channel.mode});
       document.getElementById('clipList').innerHTML=c.map(x=>`<div class='line'><b>${esc(x.hook)}</b><br><span class='mini'>${esc(x.caption)}</span></div>`).join('');
       updateKpis();
+      renderAllHistory();
       setProgress(true,'Clipy: fallback hotov',4,4);
       setStatus(`LLM clipy selhaly, použit fallback. ${e?.message||''}`.trim());
     }
@@ -985,12 +1068,58 @@ document.getElementById('toolCatalog').onclick=(e)=>{
   renderToolCatalog();
   setStatus(`Kontrakt uložen pro ${toolId}.`);
 };
+for(const b of document.querySelectorAll('.settings-menu-btn')){
+  b.addEventListener('click',()=>activateSettingsSection(b.dataset.sec||'prompts'));
+}
+document.getElementById('titlesHistory').addEventListener('click',(e)=>{
+  const btn=e.target.closest('.rollback-history');
+  if(!btn) return;
+  const id=btn.getAttribute('data-id');
+  if(!Studio.rollbackGenerationSnapshot('titles',id)) return;
+  const out=Studio.state.smartTitles||[];
+  document.getElementById('titleList').innerHTML=out.map((x,i)=>`<div class='line'><b>${i+1}.</b> ${esc(x.title)} · ${esc(x.category||'history')} · ${Number(x.score||0)}/100</div>`).join('');
+  updateKpis();
+  setStatus('Vrácena starší verze titles.');
+});
+document.getElementById('descsHistory').addEventListener('click',(e)=>{
+  const btn=e.target.closest('.rollback-history');
+  if(!btn) return;
+  const id=btn.getAttribute('data-id');
+  if(!Studio.rollbackGenerationSnapshot('descriptions',id)) return;
+  const d=Studio.state.descGenerated||{};
+  if(d.youtube_description) document.getElementById('ytOut').value=d.youtube_description;
+  if(d.spotify_html) document.getElementById('spOut').value=d.spotify_html;
+  setStatus('Vrácena starší verze popisků.');
+});
+document.getElementById('clipsHistory').addEventListener('click',(e)=>{
+  const btn=e.target.closest('.rollback-history');
+  if(!btn) return;
+  const id=btn.getAttribute('data-id');
+  if(!Studio.rollbackGenerationSnapshot('clips',id)) return;
+  const c=Studio.state.clips||[];
+  document.getElementById('clipList').innerHTML=c.map(x=>`<div class='line'><b>${esc(x.hook)}</b><br><span class='mini'>${esc(x.caption)}</span></div>`).join('');
+  updateKpis();
+  setStatus('Vrácena starší verze clipů.');
+});
 document.getElementById('videoUrl').addEventListener('input',()=>validateCoreInputs(false));
 document.getElementById('timeline').addEventListener('input',()=>validateCoreInputs(false));
 document.getElementById('setPromptTitles').addEventListener('input',validatePromptFields);
 document.getElementById('setPromptDescriptions').addEventListener('input',validatePromptFields);
 document.getElementById('setPromptGrowth').addEventListener('input',validatePromptFields);
+window.addEventListener('hashchange',()=>{
+  const m=String(location.hash||'').match(/^#settings\/([a-z-]+)/i);
+  if(!m) return;
+  activeSettingsSection=m[1];
+  activateTab(document.getElementById('tab-settings'));
+});
 
-renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);
+renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();
+{
+  const m=String(location.hash||'').match(/^#settings\/([a-z-]+)/i);
+  if(m){
+    activeSettingsSection=m[1];
+    activateTab(document.getElementById('tab-settings'));
+  }
+}
 if(!localStorage.getItem(ONBOARDING_KEY)) openOnboarding();
 </script></body></html>

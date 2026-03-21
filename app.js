@@ -121,6 +121,11 @@ function ensureSettingsShape(raw){
 function normalizeProjectShape(project){
   const p={...(project||{})};
   p.settings = ensureSettingsShape(p.settings);
+  p.generationHistory = {
+    titles: Array.isArray(p.generationHistory?.titles) ? p.generationHistory.titles : [],
+    descriptions: Array.isArray(p.generationHistory?.descriptions) ? p.generationHistory.descriptions : [],
+    clips: Array.isArray(p.generationHistory?.clips) ? p.generationHistory.clips : []
+  };
   return p;
 }
 const seed = {
@@ -132,6 +137,7 @@ const seed = {
   outliers:[{title:"ZRCE VLOG #3",views:310000,ratio:"+220%"}],
   keywords:["erem","afterparty podcast","zrce 2025"],
   clips:[],
+  generationHistory:{titles:[],descriptions:[],clips:[]},
   settings: cloneDefaultSettings()
 };
 const STORAGE_KEY='eremstudio_store_v3';
@@ -644,6 +650,64 @@ function listProjects(){
   const s=ensureStore();
   return Object.entries(s.projects||{}).map(([id,v])=>({id,...v}));
 }
+function _historyKey(type=''){
+  const t=String(type||'').toLowerCase();
+  if(t==='titles') return 'titles';
+  if(t==='descriptions') return 'descriptions';
+  if(t==='clips') return 'clips';
+  return '';
+}
+function addGenerationSnapshot(type, payload={}, meta={}){
+  const key=_historyKey(type);
+  if(!key) return false;
+  const hist=normalizeProjectShape(state).generationHistory;
+  const entry={
+    id:`hist-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,6)}`,
+    ts:new Date().toISOString(),
+    type:key,
+    payload: JSON.parse(JSON.stringify(payload||{})),
+    meta: {
+      source: String(meta.source || 'llm'),
+      note: String(meta.note || ''),
+      mode: String(meta.mode || state.settings?.channel?.mode || 'both')
+    }
+  };
+  hist[key]=[entry, ...(hist[key]||[])].slice(0,30);
+  state.generationHistory=hist;
+  save();
+  return true;
+}
+function listGenerationHistory(type){
+  const hist=normalizeProjectShape(state).generationHistory;
+  const key=_historyKey(type);
+  if(key) return [...(hist[key]||[])];
+  return {
+    titles:[...(hist.titles||[])],
+    descriptions:[...(hist.descriptions||[])],
+    clips:[...(hist.clips||[])]
+  };
+}
+function rollbackGenerationSnapshot(type, historyId){
+  const key=_historyKey(type);
+  if(!key) return false;
+  const list=listGenerationHistory(key);
+  const row=list.find(x=>x.id===historyId);
+  if(!row) return false;
+  if(key==='titles'){
+    const arr=Array.isArray(row.payload?.items)?row.payload.items:[];
+    state.smartTitles=arr;
+    state.titles=arr.map(x=>String(x.title||''));
+  }else if(key==='descriptions'){
+    const yt=String(row.payload?.youtube_description||'');
+    const sp=String(row.payload?.spotify_html||'');
+    state.descGenerated={youtube_description:yt,spotify_html:sp};
+  }else if(key==='clips'){
+    const clips=Array.isArray(row.payload?.clips)?row.payload.clips:[];
+    state.clips=clips;
+  }
+  save();
+  return true;
+}
 function selectProject(id){
   const s=ensureStore();
   if(!s.projects[id]) return false;
@@ -670,7 +734,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,isValidVideoUrl,validateTimelineText,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)
