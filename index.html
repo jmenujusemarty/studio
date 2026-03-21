@@ -156,6 +156,12 @@
       </div>
       <h3>Auto Prompt Optimizer</h3>
       <div id="optimizerStats" class="mini"></div>
+      <div class="actions">
+        <button class="btn s" id="resetOptimizerStats">Reset optimizer</button>
+        <button class="btn s" id="exportOptimizerJson">Export optimizer JSON</button>
+        <input id="importOptimizerFile" type="file" accept="application/json" />
+        <button class="btn s" id="importOptimizerJson">Import optimizer JSON</button>
+      </div>
     </div>
   </section>
 </div></main>
@@ -622,6 +628,48 @@ document.getElementById('importSettingsJson').onclick=()=>{
       setStatus('Settings importovány.');
     }catch{
       setStatus('Import selhal: nevalidní JSON.');
+    }
+  };
+  fr.readAsText(file);
+};
+document.getElementById('resetOptimizerStats').onclick=()=>{
+  const s=getProjectSettings();
+  s.promptOptimizer = Studio.ensureSettingsShape(Studio.defaultSettings).promptOptimizer;
+  Studio.state.settings=s;
+  Studio.save();
+  renderSettingsTab();
+  setStatus('Optimizer statistiky resetovány.');
+};
+document.getElementById('exportOptimizerJson').onclick=()=>{
+  const s=getProjectSettings();
+  const payload={ promptOptimizer: s.promptOptimizer || {} };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='eremstudio-optimizer.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus('Optimizer exportován.');
+};
+document.getElementById('importOptimizerJson').onclick=()=>{
+  const file=document.getElementById('importOptimizerFile').files?.[0];
+  if(!file){ setStatus('Vyber optimizer JSON soubor.'); return; }
+  const fr=new FileReader();
+  fr.onload=()=>{
+    try{
+      const raw=JSON.parse(String(fr.result||'{}'));
+      const s=getProjectSettings();
+      const next=Studio.ensureSettingsShape({
+        ...s,
+        promptOptimizer: raw.promptOptimizer || raw
+      });
+      Studio.state.settings=next;
+      Studio.save();
+      renderSettingsTab();
+      setStatus('Optimizer importován.');
+    }catch{
+      setStatus('Import optimizeru selhal: nevalidní JSON.');
     }
   };
   fr.readAsText(file);
