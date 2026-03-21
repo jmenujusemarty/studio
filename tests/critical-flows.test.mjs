@@ -119,3 +119,17 @@ test('scheduler processes due queued jobs', () => {
   const a = q.find((x) => x.id === j1.id);
   assert.equal(a.status, 'done');
 });
+
+test('approval state and channel profile helpers update state', () => {
+  const Studio = loadStudio();
+  const approval = Studio.setApprovalState('review', 'needs QA');
+  assert.equal(approval.state, 'review');
+  assert.equal(approval.note, 'needs QA');
+
+  Studio.state.settings.promptOptimizer.tasks.titles.avgScore = 82;
+  Studio.state.settings.promptOptimizer.tasks.titles.uses = 10;
+  Studio.state.settings.promptOptimizer.tasks.titles.ok = 8;
+  const profile = Studio.recomputeChannelProfile();
+  assert.equal(profile.tone, 'bold');
+  assert.ok(profile.successRate >= 0);
+});

@@ -122,6 +122,8 @@ function normalizeProjectShape(project){
   const p={...(project||{})};
   p.settings = ensureSettingsShape(p.settings);
   p.abSelections = (p.abSelections && typeof p.abSelections==='object') ? p.abSelections : {title:'',description:'',clip:'',thumbnail:''};
+  p.approval = (p.approval && typeof p.approval==='object') ? p.approval : {state:'draft', updatedAt:'', note:''};
+  p.channelProfile = (p.channelProfile && typeof p.channelProfile==='object') ? p.channelProfile : {tone:'balanced', successRate:0, avgTitleScore:0, recommendations:[]};
   p.publishQueue = Array.isArray(p.publishQueue) ? p.publishQueue : [];
   p.auditLog = Array.isArray(p.auditLog) ? p.auditLog : [];
   p.generationHistory = {
@@ -141,6 +143,8 @@ const seed = {
   keywords:["erem","afterparty podcast","zrce 2025"],
   clips:[],
   abSelections:{title:'',description:'',clip:'',thumbnail:''},
+  approval:{state:'draft',updatedAt:'',note:''},
+  channelProfile:{tone:'balanced',successRate:0,avgTitleScore:0,recommendations:[]},
   publishQueue:[],
   auditLog:[],
   generationHistory:{titles:[],descriptions:[],clips:[]},
@@ -468,6 +472,31 @@ function runDuePublishJobs(nowIso=''){
   state.publishQueue=next;
   save();
   return {processed,total:next.length};
+}
+function setApprovalState(approvalState='draft', note=''){
+  const allowed=new Set(['draft','review','approved']);
+  const s=allowed.has(approvalState)?approvalState:'draft';
+  state.approval={state:s,updatedAt:new Date().toISOString(),note:String(note||'')};
+  addAuditEvent('approval',`Approval -> ${s}`,{note:String(note||'')});
+  save();
+  return {...state.approval};
+}
+function recomputeChannelProfile(){
+  const tasks=state.settings?.promptOptimizer?.tasks || {};
+  const titleAvg=Number(tasks.titles?.avgScore || 0);
+  const uses=Number(tasks.titles?.uses || 0)+Number(tasks.descriptions?.uses || 0)+Number(tasks.growth?.uses || 0);
+  const ok=Number(tasks.titles?.ok || 0)+Number(tasks.descriptions?.ok || 0)+Number(tasks.growth?.ok || 0);
+  const successRate=uses?Math.round((ok/uses)*100):0;
+  let tone='balanced';
+  if(titleAvg>=80) tone='bold';
+  else if(titleAvg<60) tone='clear';
+  const recommendations=[];
+  if(successRate<50) recommendations.push('Zkrátit prompty a zpřesnit vstupy.');
+  if(titleAvg<70) recommendations.push('Zvýšit důraz na curiosity/high-stakes pattern.');
+  if(!recommendations.length) recommendations.push('Profil je stabilní, drž konzistentní styl.');
+  state.channelProfile={tone,successRate,avgTitleScore:Math.round(titleAvg),recommendations};
+  save();
+  return {...state.channelProfile};
 }
 
 function _extractJsonPayload(text=''){
@@ -907,7 +936,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,setApprovalState,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)

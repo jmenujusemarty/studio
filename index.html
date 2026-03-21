@@ -146,8 +146,17 @@
         <div class="actions"><button class="btn s" id="enqueuePublishJob">Přidat do fronty</button><button class="btn s" id="runSchedulerNow">Spustit scheduler</button></div>
       </div>
       <div class="actions"><button class="btn s" id="copyPublishPackage">Copy JSON</button></div>
+      <h3>Channel Profile</h3>
+      <div id="channelProfileBox" class="history-card"></div>
+      <div class="actions"><button class="btn s" id="recomputeProfile">Přepočítat profil</button></div>
       <h3>Publish Queue</h3>
       <div id="publishQueueList"></div>
+      <h3>Approval Workflow</h3>
+      <div class="row">
+        <div><label>Stav</label><select id="approvalState"><option value="draft">draft</option><option value="review">review</option><option value="approved">approved</option></select></div>
+        <div><label>Poznámka</label><input id="approvalNote" placeholder="např. čeká na review"></div>
+      </div>
+      <div class="actions"><button class="btn s" id="saveApprovalState">Uložit approval stav</button></div>
       <h3>Audit Log</h3>
       <div id="auditLogList"></div>
     </div>
@@ -475,6 +484,24 @@ function renderAuditLog(){
   }
   box.innerHTML=items.map(r=>`<div class="line"><b>${esc(new Date(r.ts).toLocaleString('cs-CZ'))}</b> · ${esc(r.type)} · ${esc(r.message)}</div>`).join('');
 }
+function renderChannelProfile(){
+  const box=document.getElementById('channelProfileBox');
+  const p=Studio.state.channelProfile || {};
+  const rec=Array.isArray(p.recommendations)?p.recommendations:[];
+  box.innerHTML=[
+    `<div class="line"><b>Tone:</b> ${esc(p.tone||'balanced')}</div>`,
+    `<div class="line"><b>Success rate:</b> ${esc(String(p.successRate||0))}%</div>`,
+    `<div class="line"><b>Avg title score:</b> ${esc(String(p.avgTitleScore||0))}</div>`,
+    `<div class="mini">${rec.map(x=>esc(x)).join(' | ') || 'Bez doporučení.'}</div>`
+  ].join('');
+  const appr=Studio.state.approval || {};
+  document.getElementById('approvalState').value=appr.state || 'draft';
+  document.getElementById('approvalNote').value=appr.note || '';
+}
+function refreshChannelProfile(){
+  Studio.recomputeChannelProfile();
+  renderChannelProfile();
+}
 function _historyTop(type){
   return (Studio.listGenerationHistory(type)||[])[0] || null;
 }
@@ -750,6 +777,7 @@ window.selectP=(id)=>{
   renderAllHistory();
   renderABBoard();
   renderPublishQueue();
+  renderChannelProfile();
   renderAuditLog();
   setStatus('Projekt přepnut.');
 }
@@ -765,6 +793,7 @@ window.delP=(id)=>{
   renderAllHistory();
   renderABBoard();
   renderPublishQueue();
+  renderChannelProfile();
   renderAuditLog();
   setStatus('Projekt byl smazán.');
 }
@@ -904,6 +933,7 @@ document.getElementById('saveCore').onclick=()=>{
   if(!validateCoreInputs(true)){ setStatus('Oprav validaci URL/timeline.'); return; }
   Studio.save();renderProjects();fillOutputs();updateKpis();setStatus('Projekt uložen.');
   Studio.addAuditEvent('project','Project saved',{projectId:Studio.state._projectId});
+  refreshChannelProfile();
   renderAuditLog();
   Studio.syncProjectToServer(Studio.state).catch(e=>reportError('Server sync', e, ()=>Studio.syncProjectToServer(Studio.state)));
 };
@@ -957,6 +987,7 @@ document.getElementById('genTitles').onclick=()=>{
       updateKpis();
       renderAllHistory();
       Studio.addAuditEvent('titles','Titles generated',{count:out.length,source:'llm'});
+      refreshChannelProfile();
       renderAuditLog();
       setProgress(true,'Titles: hotovo',4,4);
       setStatus('Strategické názvy vygenerovány přes LLM.');
@@ -972,6 +1003,7 @@ document.getElementById('genTitles').onclick=()=>{
       updateKpis();
       renderAllHistory();
       Studio.addAuditEvent('titles','Titles generated fallback',{count:out.length,source:'fallback'});
+      refreshChannelProfile();
       renderAuditLog();
       setProgress(true,'Titles: fallback hotov',4,4);
       setStatus(`LLM titles selhaly, použit fallback. ${e?.message||''}`.trim());
@@ -1011,6 +1043,7 @@ document.getElementById('genDescs').onclick=()=>{
       }
       renderAllHistory();
       Studio.addAuditEvent('descriptions','Descriptions generated',{source:'llm'});
+      refreshChannelProfile();
       renderAuditLog();
       setProgress(true,'Popisky: hotovo',4,4);
       setStatus('Popisky vygenerovány přes LLM.');
@@ -1023,6 +1056,7 @@ document.getElementById('genDescs').onclick=()=>{
       Studio.addGenerationSnapshot('descriptions',{youtube_description:document.getElementById('ytOut').value,spotify_html:document.getElementById('spOut').value},{source:'fallback',mode:s.channel.mode});
       renderAllHistory();
       Studio.addAuditEvent('descriptions','Descriptions fallback',{source:'fallback'});
+      refreshChannelProfile();
       renderAuditLog();
       setProgress(true,'Popisky: fallback hotov',4,4);
       setStatus(`LLM popisky selhaly, použit fallback. ${e?.message||''}`.trim());
@@ -1097,6 +1131,7 @@ document.getElementById('mineClips').onclick=()=>{
         updateKpis();
         renderAllHistory();
         Studio.addAuditEvent('clips','Clips generated',{count:c.length,source:'llm'});
+        refreshChannelProfile();
         renderAuditLog();
         setProgress(true,'Clipy: hotovo',4,4);
         setStatus('Clip kandidáti vygenerováni přes LLM.');
@@ -1114,6 +1149,7 @@ document.getElementById('mineClips').onclick=()=>{
       updateKpis();
       renderAllHistory();
       Studio.addAuditEvent('clips','Clips fallback',{count:c.length,source:'fallback'});
+      refreshChannelProfile();
       renderAuditLog();
       setProgress(true,'Clipy: fallback hotov',4,4);
       setStatus(`LLM clipy selhaly, použit fallback. ${e?.message||''}`.trim());
@@ -1142,6 +1178,7 @@ document.getElementById('pullProjectsServer').onclick=()=>{
     renderAllHistory();
     renderABBoard();
     renderPublishQueue();
+    renderChannelProfile();
     renderAuditLog();
     setStatus(`Načteno ${list.length} projektů ze serveru.`);
   });
@@ -1387,6 +1424,18 @@ document.getElementById('runSchedulerNow').onclick=()=>{
   renderAuditLog();
   setStatus(`Scheduler zpracoval ${out.processed} jobů.`);
 };
+document.getElementById('recomputeProfile').onclick=()=>{
+  refreshChannelProfile();
+  setStatus('Channel profile přepočítán.');
+};
+document.getElementById('saveApprovalState').onclick=()=>{
+  const stateVal=document.getElementById('approvalState').value || 'draft';
+  const note=document.getElementById('approvalNote').value || '';
+  Studio.setApprovalState(stateVal,note);
+  renderAuditLog();
+  renderChannelProfile();
+  setStatus(`Approval stav uložen: ${stateVal}.`);
+};
 document.getElementById('errorPanel').addEventListener('click',(e)=>{
   const btn=e.target.closest('.retry-error');
   if(!btn) return;
@@ -1440,7 +1489,7 @@ document.addEventListener('keydown',(e)=>{
   }
 });
 
-renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderABBoard();renderPublishQueue();renderAuditLog();renderErrorPanel();
+renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderABBoard();renderPublishQueue();renderChannelProfile();renderAuditLog();renderErrorPanel();
 {
   const m=String(location.hash||'').match(/^#settings\/([a-z-]+)/i);
   if(m){
