@@ -1249,10 +1249,19 @@ async function generateStrategicTitles(input={}){
   const trendsKeywords = input.trendsKeywords || state.trendSnapshot?.merged || state.keywords || [];
   const audience = input.audience || 'CZ';
   const titleCount = Number(input.maxTitles || 10);
+  const inputCheck = validateToolContractPayload(
+    'titles-engine',
+    {transcript, trends: trendsKeywords},
+    {},
+    state.settings
+  );
+  if(!inputCheck.ok){
+    throw new Error(`titles-engine contract input failed: ${inputCheck.errors.join(' | ')}`);
+  }
   const out = await callCodex('titles', {transcript, trendsKeywords, audience, titleCount, promptOverride: input.promptOverride || ''}, input.options || {});
   if(!Array.isArray(out)) throw new Error('Titles payload must be array.');
   const maxTitles = Number(input.maxTitles || 10);
-  return out
+  const normalized = out
     .filter(x=>x && x.title)
     .slice(0,Math.max(1,Math.min(30,maxTitles)))
     .map(x=>({
@@ -1260,21 +1269,59 @@ async function generateStrategicTitles(input={}){
       category: String(x.category || 'Curiosity Gap').trim(),
       score: Math.max(1, Math.min(100, Number(x.score || algorithmGuardScore(String(x.title||''), trendsKeywords))))
     }));
+  const outputCheck = validateToolContractPayload(
+    'titles-engine',
+    {transcript, trends: trendsKeywords},
+    {titles: normalized},
+    state.settings
+  );
+  if(!outputCheck.ok){
+    throw new Error(`titles-engine contract output failed: ${outputCheck.errors.join(' | ')}`);
+  }
+  return normalized;
 }
 
 async function generateSmartDescriptions(input={}){
   const timeline = input.timeline || normalizedTimelineItems().map(x=>`${x.ts_hms} ${x.title}`).join('\n');
   const descShort = input.descShort || state.desc || '';
+  const inputCheck = validateToolContractPayload(
+    'core-descriptions',
+    {timeline, descShort},
+    {},
+    state.settings
+  );
+  if(!inputCheck.ok){
+    throw new Error(`core-descriptions contract input failed: ${inputCheck.errors.join(' | ')}`);
+  }
   const out = await callCodex('descriptions', {timeline, descShort, promptOverride: input.promptOverride || ''}, input.options || {});
   if(!out || typeof out !== 'object') throw new Error('Descriptions payload must be object.');
-  return {
+  const normalized = {
     youtube_description: String(out.youtube_description || '').trim(),
     spotify_html: String(out.spotify_html || '').trim()
   };
+  const outputCheck = validateToolContractPayload(
+    'core-descriptions',
+    {timeline, descShort},
+    normalized,
+    state.settings
+  );
+  if(!outputCheck.ok){
+    throw new Error(`core-descriptions contract output failed: ${outputCheck.errors.join(' | ')}`);
+  }
+  return normalized;
 }
 
 async function generateGrowthAndClips(input={}){
   const transcript = (input.transcript || state.timeline || '').trim();
+  const inputCheck = validateToolContractPayload(
+    'growth-scout',
+    {transcript},
+    {},
+    state.settings
+  );
+  if(!inputCheck.ok){
+    throw new Error(`growth-scout contract input failed: ${inputCheck.errors.join(' | ')}`);
+  }
   const out = await callCodex('growth', {transcript, promptOverride: input.promptOverride || ''}, input.options || {});
   if(!out || typeof out !== 'object') throw new Error('Growth payload must be object.');
   const clips = Array.isArray(out.clips) ? out.clips.slice(0,5).map(c=>({
@@ -1282,7 +1329,17 @@ async function generateGrowthAndClips(input={}){
     hook: String(c.hook || ''),
     reason: String(c.reason || '')
   })) : [];
-  return {clips, retention_tip: String(out.retention_tip || '').trim()};
+  const normalized = {clips, retention_tip: String(out.retention_tip || '').trim()};
+  const outputCheck = validateToolContractPayload(
+    'growth-scout',
+    {transcript},
+    normalized,
+    state.settings
+  );
+  if(!outputCheck.ok){
+    throw new Error(`growth-scout contract output failed: ${outputCheck.errors.join(' | ')}`);
+  }
+  return normalized;
 }
 
 

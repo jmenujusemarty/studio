@@ -241,3 +241,16 @@ test('settings shape includes queue api integration url', () => {
   assert.equal(typeof s.integrations.queueApiUrl, 'string');
   assert.ok(s.integrations.queueApiUrl.includes('queue.php'));
 });
+
+test('titles engine contract validator catches invalid payload', () => {
+  const Studio = loadStudio();
+  const s = Studio.ensureSettingsShape(Studio.defaultSettings);
+  const bad = Studio.validateToolContractPayload(
+    'titles-engine',
+    { transcript: 'x' },
+    { titles: [] },
+    s
+  );
+  assert.equal(bad.ok, false);
+  assert.ok(bad.errors.some((e) => e.includes('trends')));
+});
