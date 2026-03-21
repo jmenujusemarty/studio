@@ -208,3 +208,17 @@ test('publish router creates jobs by channel mode', () => {
   assert.equal(yt.length, 1);
   assert.equal(yt[0].target, 'youtube');
 });
+
+test('performance ingestion updates optimizer and channel profile', () => {
+  const Studio = loadStudio();
+  const out = Studio.ingestPerformanceMetrics({
+    source: 'youtube-studio',
+    ctr: 7.1,
+    retention: 44.2,
+    titleScore: 80
+  });
+  assert.equal(out.ok, true);
+  assert.ok(out.perfScore > 0);
+  assert.ok(Studio.state.settings.promptOptimizer.tasks.titles.uses >= 1);
+  assert.ok(typeof Studio.state.channelProfile.tone === 'string');
+});

@@ -177,6 +177,11 @@
         <div class="actions"><button class="btn s" id="refreshAnalytics">Načíst analytics</button><button class="btn s" id="runServerSchedulerNow">Scheduler server</button></div>
       </div>
       <div id="analyticsHubBox" class="history-card"></div>
+      <h3>Performance Feedback</h3>
+      <label>Import metrik (JSON)</label>
+      <textarea id="performanceInput" placeholder='{"source":"youtube-studio","ctr":6.4,"retention":42.5,"titleScore":78}'></textarea>
+      <div class="actions"><button class="btn s" id="ingestPerformance">Importovat metriky</button></div>
+      <div id="performanceBox" class="history-card"></div>
       <h3>A/B Test Planner</h3>
       <label>Plán variant (JSON)</label>
       <textarea id="abPlanInput" placeholder='[{"id":"var-a","label":"Title A","channel":"youtube","publishAt":"2026-03-22T12:00:00Z","asset":"thumb-a.png"}]'></textarea>
@@ -592,6 +597,20 @@ function renderAnalyticsHub(){
     `<div class="mini">${series.slice(-6).map(x=>`${esc(x.label)} CTR ${esc(String(x.ctr))}% / RET ${esc(String(x.retention))}%`).join(' | ') || 'Bez series dat.'}</div>`
   ].join('');
 }
+function renderPerformance(){
+  const box=document.getElementById('performanceBox');
+  if(!box) return;
+  const p=Studio.state.performanceSnapshot || null;
+  if(!p){
+    box.innerHTML='<div class="mini">Performance snapshot zatím není načten.</div>';
+    return;
+  }
+  box.innerHTML=[
+    `<div class="line"><b>Source:</b> ${esc(p.source||'manual')} · <b>Time:</b> ${esc(new Date(p.ts).toLocaleString('cs-CZ'))}</div>`,
+    `<div class="line"><b>CTR:</b> ${esc(String(p.ctr||0))}% · <b>Retention:</b> ${esc(String(p.retention||0))}% · <b>Title score:</b> ${esc(String(p.titleScore||0))}</div>`,
+    `<div class="line"><b>Perf score:</b> ${esc(String(p.perfScore||0))}/100</div>`
+  ].join('');
+}
 function renderAbPlanner(){
   const box=document.getElementById('abPlannerBox');
   if(!box) return;
@@ -914,6 +933,7 @@ window.selectP=(id)=>{
   renderApprovalVotes();
   renderAuditLog();
   renderAnalyticsHub();
+  renderPerformance();
   renderAbPlanner();
   setStatus('Projekt přepnut.');
 }
@@ -934,6 +954,7 @@ window.delP=(id)=>{
   renderApprovalVotes();
   renderAuditLog();
   renderAnalyticsHub();
+  renderPerformance();
   renderAbPlanner();
   setStatus('Projekt byl smazán.');
 }
@@ -1339,6 +1360,7 @@ document.getElementById('pullProjectsServer').onclick=()=>{
     renderApprovalVotes();
     renderAuditLog();
     renderAnalyticsHub();
+    renderPerformance();
     renderAbPlanner();
     setStatus(`Načteno ${list.length} projektů ze serveru.`);
   });
@@ -1646,9 +1668,27 @@ document.getElementById('refreshAnalytics').onclick=()=>{
     const range=document.getElementById('analyticsRange').value || '30d';
     await Studio.fetchAnalyticsSnapshot(range);
     renderAnalyticsHub();
+    renderPerformance();
     renderAuditLog();
     setStatus('Analytics snapshot načten.');
   });
+};
+document.getElementById('ingestPerformance').onclick=()=>{
+  try{
+    const parsed=JSON.parse(document.getElementById('performanceInput').value||'{}');
+    const out=Studio.ingestPerformanceMetrics(parsed);
+    if(!out.ok){
+      setStatus('Import metrik selhal.','error');
+      return;
+    }
+    renderPerformance();
+    renderChannelProfile();
+    renderAuditLog();
+    renderSettingsTab();
+    setStatus(`Performance metrics importovány. Score ${out.perfScore}/100.`);
+  }catch{
+    setStatus('Metriky nejsou validní JSON.','error');
+  }
 };
 document.getElementById('saveAbPlan').onclick=()=>{
   try{
@@ -1780,7 +1820,7 @@ document.addEventListener('keydown',(e)=>{
   }
 });
 
-renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderClipPipeline();renderABBoard();renderPublishQueue();renderChannelProfile();renderApprovalVotes();renderAuditLog();renderServerAudit([]);renderAnalyticsHub();renderAbPlanner();renderMarketplace();renderErrorPanel();
+renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderClipPipeline();renderABBoard();renderPublishQueue();renderChannelProfile();renderApprovalVotes();renderAuditLog();renderServerAudit([]);renderAnalyticsHub();renderPerformance();renderAbPlanner();renderMarketplace();renderErrorPanel();
 {
   const m=String(location.hash||'').match(/^#settings\/([a-z-]+)/i);
   if(m){

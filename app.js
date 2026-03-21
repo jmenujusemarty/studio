@@ -815,6 +815,43 @@ function recomputeChannelProfile(){
   save();
   return {...state.channelProfile};
 }
+function ingestPerformanceMetrics(metrics={}){
+  const m=(metrics && typeof metrics==='object') ? metrics : {};
+  const ctr=Number(m.ctr || 0);
+  const retention=Number(m.retention || 0);
+  const titlePerf=Number(m.titleScore || 0);
+  const source=String(m.source || 'manual');
+  const tasks=state.settings?.promptOptimizer?.tasks;
+  if(!tasks) return {ok:false, reason:'missing optimizer tasks'};
+
+  // Feedback loop: map external KPI to internal optimizer scores.
+  const perfScore=Math.max(0,Math.min(100, Math.round((ctr*3.2 + retention*0.9 + titlePerf*0.6)/3)));
+  const apply=(task)=>{
+    task.uses = Number(task.uses||0) + 1;
+    task.ok = Number(task.ok||0) + (perfScore>=60 ? 1 : 0);
+    task.fail = Number(task.fail||0) + (perfScore<60 ? 1 : 0);
+    const prev=Number(task.avgScore||0);
+    const n=Math.max(1, Number(task.uses||1));
+    task.avgScore = Number((prev + (perfScore-prev)/n).toFixed(2));
+    task.lastUsedAt = new Date().toISOString();
+  };
+  apply(tasks.titles);
+  apply(tasks.descriptions);
+  apply(tasks.growth);
+
+  state.performanceSnapshot={
+    ts:new Date().toISOString(),
+    source,
+    ctr:Number(ctr.toFixed(2)),
+    retention:Number(retention.toFixed(2)),
+    titleScore:Number(titlePerf.toFixed(2)),
+    perfScore
+  };
+  addAuditEvent('performance','Performance metrics ingested',{source,ctr,retention,perfScore});
+  recomputeChannelProfile();
+  save();
+  return {ok:true, perfScore, snapshot:{...state.performanceSnapshot}};
+}
 
 function _extractJsonPayload(text=''){
   const raw=(text||'').trim();
@@ -1253,7 +1290,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,getAuditApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,fetchServerAudit,getMarketplaceTemplates,installMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,importAbPlannerResults,exportChannelPayloads,routePublishJobs,setApprovalState,setApprovalPolicy,addApprovalVote,canPublishNow,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,getAuditApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,fetchServerAudit,getMarketplaceTemplates,installMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,importAbPlannerResults,exportChannelPayloads,routePublishJobs,ingestPerformanceMetrics,setApprovalState,setApprovalPolicy,addApprovalVote,canPublishNow,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)
