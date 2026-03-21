@@ -1,0 +1,90 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import path from 'node:path';
+
+function createStorage() {
+  const map = new Map();
+  return {
+    getItem: (k) => (map.has(k) ? map.get(k) : null),
+    setItem: (k, v) => map.set(k, String(v)),
+    removeItem: (k) => map.delete(k),
+    clear: () => map.clear()
+  };
+}
+
+function loadStudio() {
+  const code = fs.readFileSync(path.resolve('app.js'), 'utf8');
+  const localStorage = createStorage();
+  const context = {
+    window: {},
+    document: { getElementById: () => null },
+    localStorage,
+    navigator: {},
+    fetch: async () => {
+      throw new Error('fetch not mocked');
+    },
+    DOMParser: class {
+      parseFromString() {
+        return { querySelectorAll: () => [] };
+      }
+    },
+    URLSearchParams,
+    console,
+    Date,
+    Math,
+    JSON,
+    setTimeout,
+    clearTimeout
+  };
+  vm.createContext(context);
+  new vm.Script(code, { filename: 'app.js' }).runInContext(context);
+  return context.window.Studio;
+}
+
+test('timeline validator accepts valid rows and rejects malformed ones', () => {
+  const Studio = loadStudio();
+  const ok = Studio.validateTimelineText('00:00 Úvod\n01:10 Kapitola');
+  assert.equal(ok.ok, true);
+  assert.equal(ok.lineErrors.length, 0);
+
+  const bad = Studio.validateTimelineText('Úvod bez timestampu\n00:00');
+  assert.equal(bad.ok, false);
+  assert.ok(bad.lineErrors.length >= 1);
+});
+
+test('tool contract runtime validation enforces required fields', () => {
+  const Studio = loadStudio();
+  const settings = Studio.ensureSettingsShape(Studio.defaultSettings);
+
+  const valid = Studio.validateToolContractPayload(
+    'publish-router',
+    { channel: {}, payload: {} },
+    { jobs: [] },
+    settings
+  );
+  assert.equal(valid.ok, true);
+
+  const invalid = Studio.validateToolContractPayload(
+    'publish-router',
+    { channel: {} },
+    { jobs: [] },
+    settings
+  );
+  assert.equal(invalid.ok, false);
+  assert.ok(invalid.errors.some((e) => e.includes('payload')));
+});
+
+test('replaceAllLocalProjects loads projects and keeps active project', () => {
+  const Studio = loadStudio();
+  const projects = [
+    { _projectId: 'a1', episode: 'One', timeline: '00:00 Intro', settings: Studio.defaultSettings },
+    { _projectId: 'b2', episode: 'Two', timeline: '00:00 Start', settings: Studio.defaultSettings }
+  ];
+  const ok = Studio.replaceAllLocalProjects(projects);
+  assert.equal(ok, true);
+  const list = Studio.listProjects();
+  assert.equal(list.length, 2);
+  assert.ok(list.some((p) => p._projectId === 'a1'));
+});

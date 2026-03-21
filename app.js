@@ -347,6 +347,67 @@ function setApiAccessToken(token=''){
   else localStorage.removeItem('eremstudio_api_access_token');
   return getApiAccessToken();
 }
+function getProjectsApiUrl(){
+  return (localStorage.getItem('eremstudio_projects_api_url') || './api/projects.php').trim();
+}
+function setProjectsApiUrl(url=''){
+  const v=String(url||'').trim();
+  if(v) localStorage.setItem('eremstudio_projects_api_url',v);
+  else localStorage.removeItem('eremstudio_projects_api_url');
+  return getProjectsApiUrl();
+}
+async function _projectsApiRequest(payloadOrQuery, method='POST', opts={}){
+  const apiUrl=(opts.apiUrl || getProjectsApiUrl()).trim();
+  const apiToken=(opts.apiToken ?? getApiAccessToken()).trim();
+  const headers={'Content-Type':'application/json'};
+  if(apiToken) headers['X-API-Token']=apiToken;
+  let url=apiUrl;
+  const init={method, headers};
+  if(method==='GET'){
+    const q=payloadOrQuery && typeof payloadOrQuery==='object' ? new URLSearchParams(payloadOrQuery).toString() : '';
+    if(q) url += (url.includes('?') ? '&' : '?') + q;
+  }else{
+    init.body=JSON.stringify(payloadOrQuery || {});
+  }
+  const res=await fetch(url, init);
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok || data?.error) throw new Error(String(data?.error || `Projects API failed (${res.status})`));
+  return data;
+}
+async function syncProjectToServer(project, opts={}){
+  const p=normalizeProjectShape(project || state);
+  await _projectsApiRequest({action:'upsert', project:p}, 'POST', opts);
+  return true;
+}
+async function deleteProjectOnServer(id, opts={}){
+  await _projectsApiRequest({action:'delete', id:String(id||'')}, 'POST', opts);
+  return true;
+}
+async function pullProjectsFromServer(opts={}){
+  const out=await _projectsApiRequest({}, 'GET', opts);
+  const list=Array.isArray(out?.projects)?out.projects:[];
+  return list.map(normalizeProjectShape);
+}
+function replaceAllLocalProjects(projects=[]){
+  const list=Array.isArray(projects)?projects.map(normalizeProjectShape):[];
+  const s=ensureStore();
+  const next={};
+  for(const p of list){
+    const id=String(p._projectId || p.id || '');
+    if(!id) continue;
+    p._projectId=id;
+    next[id]=p;
+  }
+  if(!Object.keys(next).length) return false;
+  s.projects=next;
+  if(!s.projects[s.activeId]){
+    s.activeId=Object.keys(s.projects)[0];
+  }
+  writeStore(s);
+  Object.keys(state).forEach(k=>delete state[k]);
+  Object.assign(state, s.projects[s.activeId]);
+  return true;
+}
 
 function _extractJsonPayload(text=''){
   const raw=(text||'').trim();
@@ -785,7 +846,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)

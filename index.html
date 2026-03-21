@@ -212,6 +212,10 @@
               <button class="btn s" id="resetSettingsTab">Reset default</button>
               <button class="btn p" id="saveSettingsTab">Uložit nastavení projektu</button>
             </div>
+            <div class="actions">
+              <button class="btn s" id="syncProjectServer">Sync projekt na server</button>
+              <button class="btn s" id="pullProjectsServer">Načíst projekty ze serveru</button>
+            </div>
           </section>
           <section class="settings-section" data-sec="presets">
             <h3>Presety</h3>
@@ -279,6 +283,8 @@
     <h3 id="settingsTitle">LLM API nastavení</h3>
     <label for="apiUrlInput">API URL</label>
     <input id="apiUrlInput" placeholder="https://tvoje-api-url" />
+    <label for="projectsApiUrlInput">Projects API URL</label>
+    <input id="projectsApiUrlInput" placeholder="./api/projects.php" />
     <label for="apiTokenInput">API Access Token (volitelné)</label>
     <input id="apiTokenInput" placeholder="token z api/config.php" />
     <p class="mini">Ukládá se do localStorage jako <code>eremstudio_codex_api_url</code>. Výchozí URL je <code>./api/openai.php</code>.</p>
@@ -681,6 +687,7 @@ function renderToolCatalog(){
 function openSettingsModal(){
   const bg=document.getElementById('settingsModalBg');
   document.getElementById('apiUrlInput').value=Studio.getCodexApiUrl();
+  document.getElementById('projectsApiUrlInput').value=Studio.getProjectsApiUrl();
   document.getElementById('apiTokenInput').value=Studio.getApiAccessToken();
   document.getElementById('apiTestDetail').textContent='';
   bg.style.display='flex';
@@ -721,6 +728,7 @@ window.selectP=(id)=>{
 window.delP=(id)=>{
   if(!confirm('Opravdu smazat tento projekt?')) return;
   Studio.removeProject(id);
+  Studio.deleteProjectOnServer(id).catch(e=>reportError('Server delete', e, ()=>Studio.deleteProjectOnServer(id)));
   Studio.bindCore();
   renderSettingsTab();
   renderProjects();
@@ -783,6 +791,7 @@ document.getElementById('openSettings').onclick=openSettingsModal;
 document.getElementById('closeSettings').onclick=closeSettingsModal;
 document.getElementById('saveApiUrl').onclick=()=>{
   const saved=Studio.setCodexApiUrl(document.getElementById('apiUrlInput').value);
+  Studio.setProjectsApiUrl(document.getElementById('projectsApiUrlInput').value);
   Studio.setApiAccessToken(document.getElementById('apiTokenInput').value);
   setStatus(saved ? 'API URL uložena.' : 'API URL vymazána.');
   closeSettingsModal();
@@ -814,8 +823,10 @@ document.getElementById('testApiUrl').onclick=()=>{
 };
 document.getElementById('clearApiUrl').onclick=()=>{
   Studio.setCodexApiUrl('');
+  Studio.setProjectsApiUrl('');
   Studio.setApiAccessToken('');
   document.getElementById('apiUrlInput').value='';
+  document.getElementById('projectsApiUrlInput').value='';
   document.getElementById('apiTokenInput').value='';
   setStatus('API URL vymazána.');
 };
@@ -862,6 +873,7 @@ async function runWithBusy(buttonId, fn){
 document.getElementById('saveCore').onclick=()=>{
   if(!validateCoreInputs(true)){ setStatus('Oprav validaci URL/timeline.'); return; }
   Studio.save();renderProjects();fillOutputs();updateKpis();setStatus('Projekt uložen.');
+  Studio.syncProjectToServer(Studio.state).catch(e=>reportError('Server sync', e, ()=>Studio.syncProjectToServer(Studio.state)));
 };
 document.getElementById('copyY').onclick=async()=>{const ok=await Studio.copy(Studio.ytText());setStatus(ok?'YouTube text zkopírován.':'Kopírování selhalo.');};
 document.getElementById('copyS').onclick=async()=>{const ok=await Studio.copy(Studio.spText());setStatus(ok?'Spotify text zkopírován.':'Kopírování selhalo.');};
@@ -1066,6 +1078,28 @@ document.getElementById('mineClips').onclick=()=>{
 };
 document.getElementById('thumbScore').onclick=()=>{document.getElementById('thumbScoreOut').textContent='Score: '+Studio.scoreThumb(document.getElementById('thumbText').value)+'/100';};
 document.getElementById('saveSettingsTab').onclick=()=>{validatePromptFields();readSettingsTab();setStatus('Nastavení projektu uloženo.');};
+document.getElementById('syncProjectServer').onclick=()=>{
+  runWithBusy('syncProjectServer', async()=>{
+    await Studio.syncProjectToServer(Studio.state);
+    setStatus('Projekt synchronizován na server.');
+  });
+};
+document.getElementById('pullProjectsServer').onclick=()=>{
+  runWithBusy('pullProjectsServer', async()=>{
+    const list=await Studio.pullProjectsFromServer();
+    if(!list.length){ setStatus('Server nevrátil žádné projekty.','warning'); return; }
+    Studio.replaceAllLocalProjects(list);
+    Studio.bindCore();
+    renderSettingsTab();
+    fillOutputs();
+    renderProjects();
+    renderOutliers();
+    updateKpis();
+    renderAllHistory();
+    renderABBoard();
+    setStatus(`Načteno ${list.length} projektů ze serveru.`);
+  });
+};
 document.getElementById('resetSettingsTab').onclick=()=>{
   Studio.state.settings=Studio.ensureSettingsShape(Studio.defaultSettings);
   Studio.save();
