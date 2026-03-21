@@ -122,6 +122,8 @@ function normalizeProjectShape(project){
   const p={...(project||{})};
   p.settings = ensureSettingsShape(p.settings);
   p.abSelections = (p.abSelections && typeof p.abSelections==='object') ? p.abSelections : {title:'',description:'',clip:'',thumbnail:''};
+  p.publishQueue = Array.isArray(p.publishQueue) ? p.publishQueue : [];
+  p.auditLog = Array.isArray(p.auditLog) ? p.auditLog : [];
   p.generationHistory = {
     titles: Array.isArray(p.generationHistory?.titles) ? p.generationHistory.titles : [],
     descriptions: Array.isArray(p.generationHistory?.descriptions) ? p.generationHistory.descriptions : [],
@@ -139,6 +141,8 @@ const seed = {
   keywords:["erem","afterparty podcast","zrce 2025"],
   clips:[],
   abSelections:{title:'',description:'',clip:'',thumbnail:''},
+  publishQueue:[],
+  auditLog:[],
   generationHistory:{titles:[],descriptions:[],clips:[]},
   settings: cloneDefaultSettings()
 };
@@ -406,6 +410,46 @@ function replaceAllLocalProjects(projects=[]){
   writeStore(s);
   Object.keys(state).forEach(k=>delete state[k]);
   Object.assign(state, s.projects[s.activeId]);
+  return true;
+}
+function addAuditEvent(type, message, meta={}){
+  const entry={
+    id:`audit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,6)}`,
+    ts:new Date().toISOString(),
+    type:String(type||'event'),
+    message:String(message||''),
+    meta: JSON.parse(JSON.stringify(meta||{}))
+  };
+  state.auditLog=[entry, ...(state.auditLog||[])].slice(0,150);
+  save();
+  return entry;
+}
+function listAuditLog(limit=50){
+  return [...(state.auditLog||[])].slice(0, Math.max(1, Math.min(200, Number(limit||50))));
+}
+function enqueuePublishJob(payload={}, scheduleAt=''){
+  const job={
+    id:`job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,6)}`,
+    createdAt:new Date().toISOString(),
+    scheduleAt:String(scheduleAt || new Date().toISOString()),
+    status:'queued',
+    payload: JSON.parse(JSON.stringify(payload||{}))
+  };
+  state.publishQueue=[...(state.publishQueue||[]), job];
+  addAuditEvent('publish_queue', 'Job queued', {jobId:job.id, scheduleAt:job.scheduleAt});
+  save();
+  return job;
+}
+function listPublishQueue(){
+  return [...(state.publishQueue||[])];
+}
+function updatePublishJobStatus(jobId, status='queued'){
+  const allowed=new Set(['queued','running','done','failed','canceled']);
+  const s=allowed.has(status)?status:'queued';
+  const next=(state.publishQueue||[]).map(j=>j.id===jobId?{...j,status:s,updatedAt:new Date().toISOString()}:j);
+  state.publishQueue=next;
+  addAuditEvent('publish_queue', `Job ${s}`, {jobId,status:s});
+  save();
   return true;
 }
 
@@ -846,7 +890,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,listPublishQueue,updatePublishJobStatus,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)

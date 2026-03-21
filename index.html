@@ -141,7 +141,15 @@
       <div id="abBoard" class="ab-grid"></div>
       <label>Publish balíček (JSON)</label>
       <textarea id="publishPackageOut" placeholder="Zde se objeví one-click publish package."></textarea>
+      <div class="row">
+        <div><label>Naplánovat na</label><input id="publishScheduleAt" type="datetime-local"></div>
+        <div class="actions"><button class="btn s" id="enqueuePublishJob">Přidat do fronty</button></div>
+      </div>
       <div class="actions"><button class="btn s" id="copyPublishPackage">Copy JSON</button></div>
+      <h3>Publish Queue</h3>
+      <div id="publishQueueList"></div>
+      <h3>Audit Log</h3>
+      <div id="auditLogList"></div>
     </div>
 
     <div id="settings" class="pane" role="tabpanel" aria-labelledby="tab-settings">
@@ -449,6 +457,24 @@ function renderAllHistory(){
   renderHistoryBlock('descriptions','descsHistory');
   renderHistoryBlock('clips','clipsHistory');
 }
+function renderPublishQueue(){
+  const box=document.getElementById('publishQueueList');
+  const items=Studio.listPublishQueue();
+  if(!items.length){
+    box.innerHTML='<div class="mini">Fronta je prázdná.</div>';
+    return;
+  }
+  box.innerHTML=items.map(j=>`<div class="line"><b>${esc(j.status)}</b> · ${esc(new Date(j.scheduleAt||j.createdAt).toLocaleString('cs-CZ'))} · ${esc(j.id)} <button class="btn s queue-status" data-id="${esc(j.id)}" data-status="running">Start</button> <button class="btn s queue-status" data-id="${esc(j.id)}" data-status="done">Done</button> <button class="btn s queue-status" data-id="${esc(j.id)}" data-status="failed">Fail</button></div>`).join('');
+}
+function renderAuditLog(){
+  const box=document.getElementById('auditLogList');
+  const items=Studio.listAuditLog(40);
+  if(!items.length){
+    box.innerHTML='<div class="mini">Audit log je prázdný.</div>';
+    return;
+  }
+  box.innerHTML=items.map(r=>`<div class="line"><b>${esc(new Date(r.ts).toLocaleString('cs-CZ'))}</b> · ${esc(r.type)} · ${esc(r.message)}</div>`).join('');
+}
 function _historyTop(type){
   return (Studio.listGenerationHistory(type)||[])[0] || null;
 }
@@ -723,6 +749,8 @@ window.selectP=(id)=>{
   updateKpis();
   renderAllHistory();
   renderABBoard();
+  renderPublishQueue();
+  renderAuditLog();
   setStatus('Projekt přepnut.');
 }
 window.delP=(id)=>{
@@ -736,6 +764,8 @@ window.delP=(id)=>{
   updateKpis();
   renderAllHistory();
   renderABBoard();
+  renderPublishQueue();
+  renderAuditLog();
   setStatus('Projekt byl smazán.');
 }
 
@@ -873,6 +903,8 @@ async function runWithBusy(buttonId, fn){
 document.getElementById('saveCore').onclick=()=>{
   if(!validateCoreInputs(true)){ setStatus('Oprav validaci URL/timeline.'); return; }
   Studio.save();renderProjects();fillOutputs();updateKpis();setStatus('Projekt uložen.');
+  Studio.addAuditEvent('project','Project saved',{projectId:Studio.state._projectId});
+  renderAuditLog();
   Studio.syncProjectToServer(Studio.state).catch(e=>reportError('Server sync', e, ()=>Studio.syncProjectToServer(Studio.state)));
 };
 document.getElementById('copyY').onclick=async()=>{const ok=await Studio.copy(Studio.ytText());setStatus(ok?'YouTube text zkopírován.':'Kopírování selhalo.');};
@@ -924,6 +956,8 @@ document.getElementById('genTitles').onclick=()=>{
       document.getElementById('titleList').innerHTML=out.map((x,i)=>`<div class='line'><b>${i+1}.</b> ${esc(x.title)} · ${esc(x.category)} · ${x.score}/100</div>`).join('');
       updateKpis();
       renderAllHistory();
+      Studio.addAuditEvent('titles','Titles generated',{count:out.length,source:'llm'});
+      renderAuditLog();
       setProgress(true,'Titles: hotovo',4,4);
       setStatus('Strategické názvy vygenerovány přes LLM.');
     }catch(e){
@@ -937,6 +971,8 @@ document.getElementById('genTitles').onclick=()=>{
       document.getElementById('titleList').innerHTML=out.map((x,i)=>`<div class='line'><b>${i+1}.</b> ${esc(x.title)} · fallback · ${x.score}/100</div>`).join('');
       updateKpis();
       renderAllHistory();
+      Studio.addAuditEvent('titles','Titles generated fallback',{count:out.length,source:'fallback'});
+      renderAuditLog();
       setProgress(true,'Titles: fallback hotov',4,4);
       setStatus(`LLM titles selhaly, použit fallback. ${e?.message||''}`.trim());
     }
@@ -974,6 +1010,8 @@ document.getElementById('genDescs').onclick=()=>{
         document.getElementById('spOut').value=out.spotify_html || Studio.spText();
       }
       renderAllHistory();
+      Studio.addAuditEvent('descriptions','Descriptions generated',{source:'llm'});
+      renderAuditLog();
       setProgress(true,'Popisky: hotovo',4,4);
       setStatus('Popisky vygenerovány přes LLM.');
     }catch(e){
@@ -984,6 +1022,8 @@ document.getElementById('genDescs').onclick=()=>{
       fillOutputs();
       Studio.addGenerationSnapshot('descriptions',{youtube_description:document.getElementById('ytOut').value,spotify_html:document.getElementById('spOut').value},{source:'fallback',mode:s.channel.mode});
       renderAllHistory();
+      Studio.addAuditEvent('descriptions','Descriptions fallback',{source:'fallback'});
+      renderAuditLog();
       setProgress(true,'Popisky: fallback hotov',4,4);
       setStatus(`LLM popisky selhaly, použit fallback. ${e?.message||''}`.trim());
     }
@@ -1056,6 +1096,8 @@ document.getElementById('mineClips').onclick=()=>{
         document.getElementById('clipList').innerHTML=c.map(x=>`<div class='line'><b>${esc(x.hook)}</b><br><span class='mini'>${esc(x.caption)}</span></div>`).join('');
         updateKpis();
         renderAllHistory();
+        Studio.addAuditEvent('clips','Clips generated',{count:c.length,source:'llm'});
+        renderAuditLog();
         setProgress(true,'Clipy: hotovo',4,4);
         setStatus('Clip kandidáti vygenerováni přes LLM.');
         return;
@@ -1071,6 +1113,8 @@ document.getElementById('mineClips').onclick=()=>{
       document.getElementById('clipList').innerHTML=c.map(x=>`<div class='line'><b>${esc(x.hook)}</b><br><span class='mini'>${esc(x.caption)}</span></div>`).join('');
       updateKpis();
       renderAllHistory();
+      Studio.addAuditEvent('clips','Clips fallback',{count:c.length,source:'fallback'});
+      renderAuditLog();
       setProgress(true,'Clipy: fallback hotov',4,4);
       setStatus(`LLM clipy selhaly, použit fallback. ${e?.message||''}`.trim());
     }
@@ -1097,6 +1141,8 @@ document.getElementById('pullProjectsServer').onclick=()=>{
     updateKpis();
     renderAllHistory();
     renderABBoard();
+    renderPublishQueue();
+    renderAuditLog();
     setStatus(`Načteno ${list.length} projektů ze serveru.`);
   });
 };
@@ -1302,11 +1348,39 @@ document.getElementById('buildPublishPackage').onclick=()=>{
     reportError('Contract validation', (payload.contractValidation?.errors||[]).join(' | ') || 'Nevalidní contract payload');
     setStatus('Publish balíček vytvořen, ale contract validace hlásí chyby.','warning');
   }
+  Studio.addAuditEvent('publish','Publish package built',{valid:!!payload.contractValidation?.ok});
+  renderAuditLog();
 };
 document.getElementById('copyPublishPackage').onclick=async()=>{
   const ok=await Studio.copy(document.getElementById('publishPackageOut').value||'');
   setStatus(ok?'Publish balíček zkopírován.':'Kopírování balíčku selhalo.');
 };
+document.getElementById('enqueuePublishJob').onclick=()=>{
+  let payload;
+  try{
+    payload=JSON.parse(document.getElementById('publishPackageOut').value||'{}');
+  }catch{
+    setStatus('Publish balíček není validní JSON.','error');
+    return;
+  }
+  const dt=document.getElementById('publishScheduleAt').value;
+  const scheduleAt=dt ? new Date(dt).toISOString() : new Date().toISOString();
+  Studio.enqueuePublishJob(payload, scheduleAt);
+  renderPublishQueue();
+  renderAuditLog();
+  setStatus('Job přidán do publish fronty.');
+};
+document.getElementById('publishQueueList').addEventListener('click',(e)=>{
+  const btn=e.target.closest('.queue-status');
+  if(!btn) return;
+  const id=btn.getAttribute('data-id');
+  const status=btn.getAttribute('data-status');
+  if(!id || !status) return;
+  Studio.updatePublishJobStatus(id,status);
+  renderPublishQueue();
+  renderAuditLog();
+  setStatus(`Job ${id} -> ${status}.`);
+});
 document.getElementById('errorPanel').addEventListener('click',(e)=>{
   const btn=e.target.closest('.retry-error');
   if(!btn) return;
@@ -1360,7 +1434,7 @@ document.addEventListener('keydown',(e)=>{
   }
 });
 
-renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderABBoard();renderErrorPanel();
+renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderABBoard();renderPublishQueue();renderAuditLog();renderErrorPanel();
 {
   const m=String(location.hash||'').match(/^#settings\/([a-z-]+)/i);
   if(m){

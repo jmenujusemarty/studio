@@ -88,3 +88,21 @@ test('replaceAllLocalProjects loads projects and keeps active project', () => {
   assert.equal(list.length, 2);
   assert.ok(list.some((p) => p._projectId === 'a1'));
 });
+
+test('publish queue and audit log helpers work', () => {
+  const Studio = loadStudio();
+  const payload = { selected: { title: 'Test' } };
+  const job = Studio.enqueuePublishJob(payload, new Date().toISOString());
+  assert.ok(job.id);
+  const queue = Studio.listPublishQueue();
+  assert.equal(queue.length, 1);
+  assert.equal(queue[0].status, 'queued');
+
+  Studio.updatePublishJobStatus(job.id, 'done');
+  const next = Studio.listPublishQueue();
+  assert.equal(next[0].status, 'done');
+
+  const audit = Studio.listAuditLog(10);
+  assert.ok(audit.length >= 2);
+  assert.ok(audit.some((x) => x.message.includes('Job queued')));
+});
