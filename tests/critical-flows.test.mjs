@@ -189,3 +189,22 @@ test('team approval policy and votes gate publishing', () => {
   Studio.addApprovalVote('producer', 'approve', 'approved');
   assert.equal(Studio.canPublishNow(), true);
 });
+
+test('publish router creates jobs by channel mode', () => {
+  const Studio = loadStudio();
+  const outputs = {
+    title: 'T',
+    episode: 'E',
+    youtube_description: 'Y',
+    spotify_html: '<p>S</p>',
+    timeline: ['00:00 Intro']
+  };
+  const both = Studio.routePublishJobs({ mode: 'both', publishMode: 'manual' }, outputs);
+  assert.equal(both.length, 2);
+  assert.ok(both.some((j) => j.target === 'youtube'));
+  assert.ok(both.some((j) => j.target === 'spotify'));
+
+  const yt = Studio.routePublishJobs({ mode: 'youtube', publishMode: 'manual' }, outputs);
+  assert.equal(yt.length, 1);
+  assert.equal(yt[0].target, 'youtube');
+});

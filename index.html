@@ -662,16 +662,19 @@ function buildPublishPackage(){
       clip: selected.clip || ''
     },
     outputs:{
+      title,
+      episode:Studio.state.episode || '',
       youtube_description:descY,
       spotify_html:descS,
       clips,
       timeline:Studio.normalizedTimelineItems().map(x=>`${x.ts_hms} ${x.title}`)
     }
   };
+  payload.jobs = Studio.routePublishJobs(payload.channel, payload.outputs);
   const contractValidation=Studio.validateToolContractPayload(
     'publish-router',
     {channel: payload.channel, payload: payload.outputs},
-    {jobs: []},
+    {jobs: payload.jobs},
     getProjectSettings()
   );
   payload.contractValidation=contractValidation;
@@ -1603,6 +1606,11 @@ document.getElementById('enqueuePublishJob').onclick=()=>{
   }
   const dt=document.getElementById('publishScheduleAt').value;
   const scheduleAt=dt ? new Date(dt).toISOString() : new Date().toISOString();
+  const jobs=Array.isArray(payload.jobs)?payload.jobs:[];
+  if(!jobs.length){
+    setStatus('Publish balíček nemá žádné routované joby. Zkontroluj channel mode.','warning');
+    return;
+  }
   Studio.enqueuePublishJob(payload, scheduleAt);
   renderPublishQueue();
   renderAuditLog();

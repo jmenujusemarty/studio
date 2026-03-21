@@ -768,6 +768,36 @@ function exportChannelPayloads(){
   save();
   return pack;
 }
+function routePublishJobs(channel={}, outputs={}){
+  const mode=String(channel?.mode || 'both');
+  const publishMode=String(channel?.publishMode || 'manual');
+  const jobs=[];
+  if(mode==='youtube' || mode==='both' || mode==='auto'){
+    jobs.push({
+      id:`pub-yt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,5)}`,
+      target:'youtube',
+      mode:publishMode,
+      payload:{
+        title:String(outputs?.title || ''),
+        description:String(outputs?.youtube_description || ''),
+        timeline:Array.isArray(outputs?.timeline)?outputs.timeline:[]
+      }
+    });
+  }
+  if(mode==='spotify' || mode==='both' || mode==='auto'){
+    jobs.push({
+      id:`pub-sp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,5)}`,
+      target:'spotify',
+      mode:publishMode,
+      payload:{
+        title:String(outputs?.episode || ''),
+        description_html:String(outputs?.spotify_html || ''),
+        timeline:Array.isArray(outputs?.timeline)?outputs.timeline:[]
+      }
+    });
+  }
+  return jobs;
+}
 function recomputeChannelProfile(){
   const tasks=state.settings?.promptOptimizer?.tasks || {};
   const titleAvg=Number(tasks.titles?.avgScore || 0);
@@ -1223,7 +1253,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,getAuditApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,fetchServerAudit,getMarketplaceTemplates,installMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,importAbPlannerResults,exportChannelPayloads,setApprovalState,setApprovalPolicy,addApprovalVote,canPublishNow,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,getAuditApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,fetchServerAudit,getMarketplaceTemplates,installMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,importAbPlannerResults,exportChannelPayloads,routePublishJobs,setApprovalState,setApprovalPolicy,addApprovalVote,canPublishNow,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)
