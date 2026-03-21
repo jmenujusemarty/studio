@@ -138,6 +138,7 @@
     </div>
     <div id="abpublish" class="pane" role="tabpanel" aria-labelledby="tab-abpublish">
       <div class="actions">
+        <button class="btn p" id="runFullWorkflow">1-click workflow</button>
         <button class="btn p" id="buildABBoard">Postavit A/B board</button>
         <button class="btn p" id="buildPublishPackage">Vytvořit publish balíček</button>
       </div>
@@ -167,7 +168,9 @@
       <div id="approvalVotesBox" class="history-card"></div>
       <div class="actions"><button class="btn s" id="saveApprovalState">Uložit approval stav</button></div>
       <h3>Audit Log</h3>
+      <div class="actions"><button class="btn s" id="loadServerAudit">Načíst server audit</button></div>
       <div id="auditLogList"></div>
+      <div id="serverAuditBox" class="history-card"></div>
       <h3>Analytics Hub</h3>
       <div class="row">
         <div><label>Range</label><select id="analyticsRange"><option value="7d">7d</option><option value="30d" selected>30d</option><option value="90d">90d</option></select></div>
@@ -535,6 +538,16 @@ function renderAuditLog(){
     return;
   }
   box.innerHTML=items.map(r=>`<div class="line"><b>${esc(new Date(r.ts).toLocaleString('cs-CZ'))}</b> · ${esc(r.type)} · ${esc(r.message)}</div>`).join('');
+}
+function renderServerAudit(items=[]){
+  const box=document.getElementById('serverAuditBox');
+  if(!box) return;
+  const list=Array.isArray(items)?items:[];
+  if(!list.length){
+    box.innerHTML='<div class="mini">Server audit zatím není načtený.</div>';
+    return;
+  }
+  box.innerHTML=list.slice(0,12).map(r=>`<div class="line"><b>${esc(r.ts||'')}</b> · ${esc(r.service||'system')} · ${esc(r.action||'-')} · ${esc(String(r.projectId||''))}</div>`).join('');
 }
 function renderChannelProfile(){
   const box=document.getElementById('channelProfileBox');
@@ -1052,6 +1065,7 @@ async function runWithBusy(buttonId, fn){
     setTimeout(()=>setProgress(false),300);
   }
 }
+const wait=(ms)=>new Promise(r=>setTimeout(r,ms));
 
 document.getElementById('saveCore').onclick=()=>{
   if(!validateCoreInputs(true)){ setStatus('Oprav validaci URL/timeline.'); return; }
@@ -1523,6 +1537,32 @@ document.getElementById('buildABBoard').onclick=()=>{
   renderABBoard();
   setStatus('A/B board připraven.');
 };
+document.getElementById('runFullWorkflow').onclick=()=>{
+  runWithBusy('runFullWorkflow', async()=>{
+    if(!validateCoreInputs(true)){ setStatus('Nejdřív oprav URL nebo timeline.'); return; }
+    activateTab(document.getElementById('tab-titles'));
+    setProgress(true,'Workflow: titles',1,6);
+    document.getElementById('genTitles').click();
+    await wait(200);
+    activateTab(document.getElementById('tab-descs'));
+    setProgress(true,'Workflow: descriptions',2,6);
+    document.getElementById('genDescs').click();
+    await wait(200);
+    activateTab(document.getElementById('tab-clips'));
+    setProgress(true,'Workflow: clips',3,6);
+    document.getElementById('mineClips').click();
+    await wait(200);
+    setProgress(true,'Workflow: clip pipeline',4,6);
+    document.getElementById('buildClipPipeline').click();
+    await wait(120);
+    activateTab(document.getElementById('tab-abpublish'));
+    setProgress(true,'Workflow: publish package',5,6);
+    document.getElementById('buildPublishPackage').click();
+    document.getElementById('exportChannelPayloads').click();
+    setProgress(true,'Workflow: hotovo',6,6);
+    setStatus('1-click workflow dokončen.');
+  });
+};
 document.getElementById('abBoard').addEventListener('click',(e)=>{
   const btn=e.target.closest('.pick-ab');
   if(!btn) return;
@@ -1634,6 +1674,13 @@ document.getElementById('copyChannelPayloads').onclick=async()=>{
   const ok=await Studio.copy(document.getElementById('channelPayloadOut').value||'{}');
   setStatus(ok?'Channel payload zkopírován.':'Kopírování payloadu selhalo.');
 };
+document.getElementById('loadServerAudit').onclick=()=>{
+  runWithBusy('loadServerAudit', async()=>{
+    const items=await Studio.fetchServerAudit(100);
+    renderServerAudit(items);
+    setStatus(`Načten server audit (${items.length} záznamů).`);
+  });
+};
 document.getElementById('recomputeProfile').onclick=()=>{
   refreshChannelProfile();
   setStatus('Channel profile přepočítán.');
@@ -1725,7 +1772,7 @@ document.addEventListener('keydown',(e)=>{
   }
 });
 
-renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderClipPipeline();renderABBoard();renderPublishQueue();renderChannelProfile();renderApprovalVotes();renderAuditLog();renderAnalyticsHub();renderAbPlanner();renderMarketplace();renderErrorPanel();
+renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderClipPipeline();renderABBoard();renderPublishQueue();renderChannelProfile();renderApprovalVotes();renderAuditLog();renderServerAudit([]);renderAnalyticsHub();renderAbPlanner();renderMarketplace();renderErrorPanel();
 {
   const m=String(location.hash||'').match(/^#settings\/([a-z-]+)/i);
   if(m){
