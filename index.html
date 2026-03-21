@@ -46,6 +46,8 @@
 .status-badge.success{background:#ecfdf3;color:#067647}
 .status-badge.warning{background:#fffaeb;color:#b54708}
 .status-badge.error{background:#fef3f2;color:#b42318}
+.error-panel{display:none;margin-top:10px;border:1px solid #fecaca;background:#fff7f7;border-radius:12px;padding:10px}
+.error-panel.active{display:block}
 @media(max-width:900px){.tool-grid{grid-template-columns:1fr}}
 @media(max-width:900px){.ab-grid{grid-template-columns:1fr}}
 @media(max-width:900px){.settings-layout{grid-template-columns:1fr}.settings-nav{position:static;flex-direction:row;flex-wrap:wrap}}
@@ -87,6 +89,7 @@
       <div id="statusMsg" class="mini"></div>
       <span class="mini">⌘/Ctrl+S uložit · ⌘/Ctrl+Enter spustit akci</span>
     </div>
+    <div id="errorPanel" class="error-panel" role="alert" aria-live="assertive"></div>
     <div id="progressWrap" class="progress-wrap" aria-live="polite">
       <div id="progressText" class="mini"></div>
       <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
@@ -319,6 +322,33 @@ function setStatus(msg, type=''){
   badge.className=`status-badge ${kind}`;
   badge.textContent=kind.toUpperCase();
 }
+const runtimeErrors=[];
+function renderErrorPanel(){
+  const panel=document.getElementById('errorPanel');
+  if(!runtimeErrors.length){
+    panel.classList.remove('active');
+    panel.innerHTML='';
+    return;
+  }
+  panel.classList.add('active');
+  panel.innerHTML=[
+    '<div class="line"><b>Chybový panel</b></div>',
+    ...runtimeErrors.slice(0,6).map(row=>`<div class="line"><b>${esc(row.scope)}</b>: ${esc(row.message)} ${row.retryId?`<button class="btn s retry-error" data-retry-id="${esc(row.retryId)}">Retry</button>`:''}</div>`),
+    '<div class="actions"><button class="btn s" id="clearErrors">Vyčistit chyby</button></div>'
+  ].join('');
+  document.getElementById('clearErrors').onclick=()=>{runtimeErrors.length=0;renderErrorPanel();setStatus('Chybový panel vyčištěn.','info');};
+}
+function reportError(scope, error, retryFn){
+  const message=(error && error.message) ? error.message : String(error||'Neznámá chyba');
+  const retryId=`retry-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,6)}`;
+  runtimeErrors.unshift({scope:String(scope||'runtime'), message, retryId: retryFn ? retryId : ''});
+  if(retryFn){
+    window.__studioRetries = window.__studioRetries || {};
+    window.__studioRetries[retryId]=retryFn;
+  }
+  renderErrorPanel();
+  setStatus(`${scope}: ${message}`,'error');
+}
 function setProgress(active=false, text='', step=0, total=0){
   const wrap=document.getElementById('progressWrap');
   const bar=document.getElementById('progressBar');
@@ -466,6 +496,13 @@ function buildPublishPackage(){
       timeline:Studio.normalizedTimelineItems().map(x=>`${x.ts_hms} ${x.title}`)
     }
   };
+  const contractValidation=Studio.validateToolContractPayload(
+    'publish-router',
+    {channel: payload.channel, payload: payload.outputs},
+    {jobs: []},
+    getProjectSettings()
+  );
+  payload.contractValidation=contractValidation;
   return payload;
 }
 const ONBOARDING_KEY='eremstudio_onboarding_done_v1';
@@ -813,6 +850,8 @@ async function runWithBusy(buttonId, fn){
   btn.textContent='Pracuji...';
   try{
     await fn();
+  }catch(e){
+    reportError(`Akce ${buttonId}`, e, ()=>document.getElementById(buttonId)?.click());
   }finally{
     btn.disabled=false;
     btn.textContent=txt;
@@ -834,9 +873,14 @@ document.getElementById('refreshTrends').onclick=async()=>{
   btn.disabled=true;
   const original=btn.textContent;
   btn.textContent='Načítám...';
-  const snap=await Studio.refreshDailyTrendData();
-  document.getElementById('trendMeta').textContent = snap ? `Trend snapshot: ${new Date(snap.date).toLocaleString('cs-CZ')} · CZ ${snap.cz.length} · WORLD ${snap.world.length}` : 'Trend snapshot: nepodařilo se načíst';
-  setStatus(snap ? 'Trendy načteny.' : 'Načtení trendů selhalo.');
+  try{
+    const snap=await Studio.refreshDailyTrendData();
+    document.getElementById('trendMeta').textContent = snap ? `Trend snapshot: ${new Date(snap.date).toLocaleString('cs-CZ')} · CZ ${snap.cz.length} · WORLD ${snap.world.length}` : 'Trend snapshot: nepodařilo se načíst';
+    setStatus(snap ? 'Trendy načteny.' : 'Načtení trendů selhalo.');
+    if(!snap) reportError('Trends', 'Nepodařilo se načíst trend snapshot.', ()=>document.getElementById('refreshTrends').click());
+  }catch(e){
+    reportError('Trends', e, ()=>document.getElementById('refreshTrends').click());
+  }
   btn.disabled=false;
   btn.textContent=original;
 };
@@ -871,6 +915,7 @@ document.getElementById('genTitles').onclick=()=>{
       setProgress(true,'Titles: hotovo',4,4);
       setStatus('Strategické názvy vygenerovány přes LLM.');
     }catch(e){
+      reportError('Titles generation', e, ()=>document.getElementById('genTitles').click());
       setProgress(true,'Titles: fallback',3,4);
       Studio.state.settings=Studio.updatePromptOptimizer('titles', Studio.state.settings, ctx, {ok:false});
       Studio.save();
@@ -920,6 +965,7 @@ document.getElementById('genDescs').onclick=()=>{
       setProgress(true,'Popisky: hotovo',4,4);
       setStatus('Popisky vygenerovány přes LLM.');
     }catch(e){
+      reportError('Description generation', e, ()=>document.getElementById('genDescs').click());
       setProgress(true,'Popisky: fallback',3,4);
       Studio.state.settings=Studio.updatePromptOptimizer('descriptions', Studio.state.settings, ctx, {ok:false});
       Studio.save();
@@ -959,6 +1005,7 @@ document.getElementById('runRetention').onclick=()=>{
       setProgress(true,'Growth: hotovo',4,4);
       setStatus('Growth analýza z LLM hotová.');
     }catch(e){
+      reportError('Growth analysis', e, ()=>document.getElementById('runRetention').click());
       setProgress(true,'Growth: fallback',3,4);
       Studio.state.settings=Studio.updatePromptOptimizer('growth', Studio.state.settings, ctx, {ok:false});
       Studio.save();
@@ -1003,6 +1050,7 @@ document.getElementById('mineClips').onclick=()=>{
       }
       throw new Error('No clips');
     }catch(e){
+      reportError('Clip mining', e, ()=>document.getElementById('mineClips').click());
       setProgress(true,'Clipy: fallback',3,4);
       Studio.state.settings=Studio.updatePromptOptimizer('growth', Studio.state.settings, ctx, {ok:false});
       Studio.save();
@@ -1214,12 +1262,24 @@ document.getElementById('abBoard').addEventListener('click',(e)=>{
 document.getElementById('buildPublishPackage').onclick=()=>{
   const payload=buildPublishPackage();
   document.getElementById('publishPackageOut').value=JSON.stringify(payload,null,2);
-  setStatus('Publish balíček připraven.');
+  if(payload.contractValidation?.ok){
+    setStatus('Publish balíček připraven.');
+  }else{
+    reportError('Contract validation', (payload.contractValidation?.errors||[]).join(' | ') || 'Nevalidní contract payload');
+    setStatus('Publish balíček vytvořen, ale contract validace hlásí chyby.','warning');
+  }
 };
 document.getElementById('copyPublishPackage').onclick=async()=>{
   const ok=await Studio.copy(document.getElementById('publishPackageOut').value||'');
   setStatus(ok?'Publish balíček zkopírován.':'Kopírování balíčku selhalo.');
 };
+document.getElementById('errorPanel').addEventListener('click',(e)=>{
+  const btn=e.target.closest('.retry-error');
+  if(!btn) return;
+  const id=btn.getAttribute('data-retry-id');
+  const fn=window.__studioRetries?.[id];
+  if(typeof fn==='function') fn();
+});
 document.getElementById('videoUrl').addEventListener('input',()=>validateCoreInputs(false));
 document.getElementById('timeline').addEventListener('input',()=>validateCoreInputs(false));
 document.getElementById('setPromptTitles').addEventListener('input',validatePromptFields);
@@ -1231,6 +1291,8 @@ window.addEventListener('hashchange',()=>{
   activeSettingsSection=m[1];
   activateTab(document.getElementById('tab-settings'));
 });
+window.addEventListener('error',(e)=>{ reportError('window.error', e.error || e.message); });
+window.addEventListener('unhandledrejection',(e)=>{ reportError('unhandledrejection', e.reason || 'Promise rejected'); });
 document.addEventListener('keydown',(e)=>{
   const mod=e.metaKey || e.ctrlKey;
   if(!mod) return;
@@ -1264,7 +1326,7 @@ document.addEventListener('keydown',(e)=>{
   }
 });
 
-renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderABBoard();
+renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderABBoard();renderErrorPanel();
 {
   const m=String(location.hash||'').match(/^#settings\/([a-z-]+)/i);
   if(m){

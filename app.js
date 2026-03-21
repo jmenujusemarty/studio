@@ -288,6 +288,13 @@ function trendRadar(){const base=['survivor','vlog','afterparty','zrce','bizár'
 
 
 async function fetchGoogleTrendsGeo(geo='CZ'){
+  const backend = `./api/trends.php?geo=${encodeURIComponent(geo)}`;
+  const backendRes = await fetch(backend, {method:'GET'});
+  if(backendRes.ok){
+    const payload = await backendRes.json();
+    const items = Array.isArray(payload?.items) ? payload.items : [];
+    if(items.length) return items.slice(0,20);
+  }
   const url = `https://trends.google.com/trending/rss?geo=${geo}`;
   const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
   const res = await fetch(proxy);
@@ -475,6 +482,48 @@ function upsertToolContractInSettings(settings, toolId, contractInput={}){
     s.tooling.customTools=[...(s.tooling.customTools||[]), shadow];
   }
   return s;
+}
+function _inferType(v){
+  if(Array.isArray(v)) return 'array';
+  if(v===null) return 'null';
+  return typeof v;
+}
+function validatePayloadAgainstSchema(schemaText='', payload={}){
+  const raw=String(schemaText||'').trim();
+  if(!raw) return {ok:true, errors:[]};
+  let schema;
+  try{
+    schema=JSON.parse(raw);
+  }catch{
+    return {ok:false, errors:['Schema není validní JSON.']};
+  }
+  if(!schema || typeof schema!=='object' || Array.isArray(schema)){
+    return {ok:false, errors:['Schema musí být JSON objekt typu {"field":"type"}.']};
+  }
+  const errors=[];
+  for(const [k, expected] of Object.entries(schema)){
+    const actual=(payload||{})[k];
+    const expectedType=String(expected||'').toLowerCase().trim();
+    if(expectedType==='optional') continue;
+    if(actual===undefined){
+      errors.push(`Chybí pole "${k}".`);
+      continue;
+    }
+    const actualType=_inferType(actual);
+    if(expectedType && actualType!==expectedType){
+      errors.push(`Pole "${k}" má typ ${actualType}, očekáván ${expectedType}.`);
+    }
+  }
+  return {ok:errors.length===0, errors};
+}
+function validateToolContractPayload(toolId, inputPayload={}, outputPayload={}, settings){
+  const reg=getMergedToolRegistry(settings || state.settings);
+  const tool=reg.find(t=>t.id===toolId);
+  if(!tool) return {ok:false, errors:[`Tool ${toolId} nebyl nalezen.`]};
+  const inputCheck=validatePayloadAgainstSchema(tool.contract?.inputSchema||'', inputPayload||{});
+  const outputCheck=validatePayloadAgainstSchema(tool.contract?.outputSchema||'', outputPayload||{});
+  const errors=[...inputCheck.errors.map(e=>`input: ${e}`), ...outputCheck.errors.map(e=>`output: ${e}`)];
+  return {ok:errors.length===0, errors};
 }
 
 function _avg(nums=[]){
@@ -736,7 +785,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)
