@@ -254,3 +254,16 @@ test('titles engine contract validator catches invalid payload', () => {
   assert.equal(bad.ok, false);
   assert.ok(bad.errors.some((e) => e.includes('trends')));
 });
+
+test('auto AB plan builds variants from smart titles', () => {
+  const Studio = loadStudio();
+  Studio.state.smartTitles = [
+    { title: 'Title A' },
+    { title: 'Title B' },
+    { title: 'Title C' }
+  ];
+  const plan = Studio.buildAbPlanFromCandidates({ maxVariants: 3, cadenceHours: 12 });
+  assert.ok(Array.isArray(plan.variants));
+  assert.equal(plan.variants.length, 3);
+  assert.equal(plan.variants[0].label, 'Title A');
+});

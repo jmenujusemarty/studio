@@ -186,7 +186,7 @@
       <h3>A/B Test Planner</h3>
       <label>Plán variant (JSON)</label>
       <textarea id="abPlanInput" placeholder='[{"id":"var-a","label":"Title A","channel":"youtube","publishAt":"2026-03-22T12:00:00Z","asset":"thumb-a.png"}]'></textarea>
-      <div class="actions"><button class="btn s" id="saveAbPlan">Uložit A/B plán</button></div>
+      <div class="actions"><button class="btn s" id="buildAutoAbPlan">Auto plán z top titles</button><button class="btn s" id="saveAbPlan">Uložit A/B plán</button></div>
       <label>Import výsledků (JSON)</label>
       <textarea id="abResultsInput" placeholder='[{"variantId":"var-a","impressions":1000,"clicks":72,"watchTime":1830}]'></textarea>
       <div class="actions"><button class="btn s" id="importAbResults">Importovat výsledky</button></div>
@@ -1723,6 +1723,13 @@ document.getElementById('saveAbPlan').onclick=()=>{
   }catch{
     setStatus('A/B plán není validní JSON.','error');
   }
+};
+document.getElementById('buildAutoAbPlan').onclick=()=>{
+  const plan=Studio.buildAbPlanFromCandidates({maxVariants:3,cadenceHours:24});
+  document.getElementById('abPlanInput').value=JSON.stringify(plan.variants||[],null,2);
+  renderAbPlanner();
+  renderAuditLog();
+  setStatus(`Auto A/B plán vytvořen (${(plan.variants||[]).length} variant).`);
 };
 document.getElementById('importAbResults').onclick=()=>{
   try{
