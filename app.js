@@ -618,7 +618,7 @@ async function fetchServerAudit(limit=80, opts={}){
   return Array.isArray(data?.items) ? data.items : [];
 }
 function getMarketplaceTemplates(){
-  return [
+  const base = [
     {
       id:'tpl-cz-viral-titles',
       name:'CZ Viral Titles Pack',
@@ -638,6 +638,8 @@ function getMarketplaceTemplates(){
       prompt:'Prioritizuj momenty s konfliktem, překvapením nebo konkrétní rychlou radou. U každého klipu dej silný overlay hook.'
     }
   ];
+  const custom = Array.isArray(state.settings?.marketplace?.customTemplates) ? state.settings.marketplace.customTemplates : [];
+  return [...base, ...custom];
 }
 function installMarketplaceTemplate(templateId=''){
   const id=String(templateId||'').trim();
@@ -652,6 +654,45 @@ function installMarketplaceTemplate(templateId=''){
   if(tpl.type==='growth') s.prompts.growth = [s.prompts.growth, tpl.prompt].filter(Boolean).join('\n\n');
   state.settings=s;
   addAuditEvent('marketplace','Template installed',{templateId:id});
+  save();
+  return true;
+}
+function uninstallMarketplaceTemplate(templateId=''){
+  const id=String(templateId||'').trim();
+  if(!id) return false;
+  const s=ensureSettingsShape(state.settings);
+  s.marketplace.installed=(s.marketplace.installed||[]).filter(x=>x!==id);
+  state.settings=s;
+  addAuditEvent('marketplace','Template uninstalled',{templateId:id});
+  save();
+  return true;
+}
+function addCustomMarketplaceTemplate(input={}){
+  const id=String(input.id || `tpl-custom-${Date.now().toString(36)}`).trim();
+  const name=String(input.name || '').trim();
+  const type=String(input.type || 'titles').trim();
+  const prompt=String(input.prompt || '').trim();
+  if(!name || !prompt) return false;
+  const s=ensureSettingsShape(state.settings);
+  const allowed=new Set(['titles','descriptions','growth']);
+  const tpl={id,name,type:allowed.has(type)?type:'titles',prompt};
+  const list=Array.isArray(s.marketplace.customTemplates)?[...s.marketplace.customTemplates]:[];
+  const idx=list.findIndex(x=>x.id===id);
+  if(idx>=0) list[idx]=tpl; else list.push(tpl);
+  s.marketplace.customTemplates=list;
+  state.settings=s;
+  addAuditEvent('marketplace','Custom template upserted',{templateId:id});
+  save();
+  return true;
+}
+function removeCustomMarketplaceTemplate(templateId=''){
+  const id=String(templateId||'').trim();
+  if(!id) return false;
+  const s=ensureSettingsShape(state.settings);
+  s.marketplace.customTemplates=(s.marketplace.customTemplates||[]).filter(x=>x.id!==id);
+  s.marketplace.installed=(s.marketplace.installed||[]).filter(x=>x!==id);
+  state.settings=s;
+  addAuditEvent('marketplace','Custom template removed',{templateId:id});
   save();
   return true;
 }
@@ -1451,7 +1492,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,getAuditApiUrl,getQueueApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,enqueuePublishJobOnServer,pullPublishQueueFromServer,updatePublishJobStatusOnServer,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,fetchServerAudit,getMarketplaceTemplates,installMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,buildAbPlanFromCandidates,importAbPlannerResults,exportChannelPayloads,routePublishJobs,compareVariants,ingestPerformanceMetrics,setApprovalState,setApprovalPolicy,addApprovalVote,canPublishNow,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,getAuditApiUrl,getQueueApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,enqueuePublishJobOnServer,pullPublishQueueFromServer,updatePublishJobStatusOnServer,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,fetchServerAudit,getMarketplaceTemplates,installMarketplaceTemplate,uninstallMarketplaceTemplate,addCustomMarketplaceTemplate,removeCustomMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,buildAbPlanFromCandidates,importAbPlannerResults,exportChannelPayloads,routePublishJobs,compareVariants,ingestPerformanceMetrics,setApprovalState,setApprovalPolicy,addApprovalVote,canPublishNow,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)

@@ -300,6 +300,14 @@
           <section class="settings-section" data-sec="marketplace">
             <h3>Prompt/Skill Marketplace</h3>
             <div id="marketplaceList" class="history-card"></div>
+            <h3>Vlastní šablona</h3>
+            <div class="row">
+              <div><label>ID (volitelně)</label><input id="customTplId" placeholder="tpl-custom-..."></div>
+              <div><label>Typ</label><select id="customTplType"><option value="titles">titles</option><option value="descriptions">descriptions</option><option value="growth">growth</option></select></div>
+            </div>
+            <label>Název</label><input id="customTplName" placeholder="např. Hardcore CTR Titles">
+            <label>Prompt</label><textarea id="customTplPrompt" placeholder="Instrukce pro LLM..."></textarea>
+            <div class="actions"><button class="btn s" id="saveCustomTpl">Uložit custom šablonu</button></div>
           </section>
           <section class="settings-section" data-sec="presets">
             <h3>Presety</h3>
@@ -640,7 +648,8 @@ function renderMarketplace(){
   if(!box) return;
   const installed = new Set((Studio.state.settings?.marketplace?.installed)||[]);
   const list=Studio.getMarketplaceTemplates();
-  box.innerHTML=list.map(t=>`<div class="line"><b>${esc(t.name)}</b> · ${esc(t.type)} ${installed.has(t.id)?'<span class="mini">(installed)</span>':''} <button class="btn s install-marketplace" data-id="${esc(t.id)}">Instalovat</button></div>`).join('');
+  const customIds=new Set(((Studio.state.settings?.marketplace?.customTemplates)||[]).map(x=>x.id));
+  box.innerHTML=list.map(t=>`<div class="line"><b>${esc(t.name)}</b> · ${esc(t.type)} ${installed.has(t.id)?'<span class="mini">(installed)</span>':''} <button class="btn s install-marketplace" data-id="${esc(t.id)}">Instalovat</button> <button class="btn s uninstall-marketplace" data-id="${esc(t.id)}">Odebrat</button> ${customIds.has(t.id)?`<button class="btn s remove-custom-template" data-id="${esc(t.id)}">Smazat custom</button>`:''}</div>`).join('');
 }
 function refreshChannelProfile(){
   Studio.recomputeChannelProfile();
@@ -1526,19 +1535,51 @@ document.getElementById('toolCatalog').onclick=(e)=>{
   setStatus(`Kontrakt uložen pro ${toolId}.`);
 };
 document.getElementById('marketplaceList').addEventListener('click',(e)=>{
-  const btn=e.target.closest('.install-marketplace');
+  const installBtn=e.target.closest('.install-marketplace');
+  const uninstallBtn=e.target.closest('.uninstall-marketplace');
+  const removeBtn=e.target.closest('.remove-custom-template');
+  const btn=installBtn || uninstallBtn || removeBtn;
   if(!btn) return;
   const id=btn.getAttribute('data-id');
   if(!id) return;
-  const ok=Studio.installMarketplaceTemplate(id);
-  if(ok){
+  if(installBtn){
+    const ok=Studio.installMarketplaceTemplate(id);
+    if(ok){
+      renderSettingsTab();
+      renderMarketplace();
+      setStatus(`Marketplace template nainstalován: ${id}.`);
+    }else{
+      setStatus(`Instalace selhala: ${id}.`,'error');
+    }
+    return;
+  }
+  if(uninstallBtn){
+    Studio.uninstallMarketplaceTemplate(id);
+    renderMarketplace();
+    setStatus(`Template odebrán: ${id}.`);
+    return;
+  }
+  if(removeBtn){
+    Studio.removeCustomMarketplaceTemplate(id);
     renderSettingsTab();
     renderMarketplace();
-    setStatus(`Marketplace template nainstalován: ${id}.`);
-  }else{
-    setStatus(`Instalace selhala: ${id}.`,'error');
+    setStatus(`Custom template smazán: ${id}.`);
   }
 });
+document.getElementById('saveCustomTpl').onclick=()=>{
+  const id=document.getElementById('customTplId').value || '';
+  const name=document.getElementById('customTplName').value || '';
+  const type=document.getElementById('customTplType').value || 'titles';
+  const prompt=document.getElementById('customTplPrompt').value || '';
+  const ok=Studio.addCustomMarketplaceTemplate({id,name,type,prompt});
+  if(!ok){
+    setStatus('Uložení custom šablony selhalo. Vyplň název a prompt.','error');
+    return;
+  }
+  renderSettingsTab();
+  renderMarketplace();
+  setStatus('Custom šablona uložena.');
+};
 for(const b of document.querySelectorAll('.settings-menu-btn')){
   b.addEventListener('click',()=>activateSettingsSection(b.dataset.sec||'prompts'));
 }

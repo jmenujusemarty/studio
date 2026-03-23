@@ -267,3 +267,26 @@ test('auto AB plan builds variants from smart titles', () => {
   assert.equal(plan.variants.length, 3);
   assert.equal(plan.variants[0].label, 'Title A');
 });
+
+test('custom marketplace templates can be added and removed', () => {
+  const Studio = loadStudio();
+  const add = Studio.addCustomMarketplaceTemplate({
+    id: 'tpl-custom-x',
+    name: 'Custom X',
+    type: 'titles',
+    prompt: 'Use custom logic'
+  });
+  assert.equal(add, true);
+  const list = Studio.getMarketplaceTemplates();
+  assert.ok(list.some((x) => x.id === 'tpl-custom-x'));
+
+  Studio.installMarketplaceTemplate('tpl-custom-x');
+  assert.ok((Studio.state.settings.marketplace.installed || []).includes('tpl-custom-x'));
+  Studio.uninstallMarketplaceTemplate('tpl-custom-x');
+  assert.ok(!(Studio.state.settings.marketplace.installed || []).includes('tpl-custom-x'));
+
+  const removed = Studio.removeCustomMarketplaceTemplate('tpl-custom-x');
+  assert.equal(removed, true);
+  const listAfter = Studio.getMarketplaceTemplates();
+  assert.ok(!listAfter.some((x) => x.id === 'tpl-custom-x'));
+});
