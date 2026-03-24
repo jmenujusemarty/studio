@@ -511,6 +511,27 @@ function requirePermission(action, denyMessage){
   setStatus(denyMessage || `Role ${Studio.getActorRole()} nemá oprávnění pro akci ${action}.`,'warning');
   return false;
 }
+function _setActionAvailability(id, allowed, title=''){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.disabled=!allowed;
+  el.title=!allowed ? (title || `Role ${Studio.getActorRole()} nemá oprávnění.`) : '';
+}
+function refreshRoleUi(){
+  const canSave=Studio.hasPermission('save_project');
+  const canGenerate=Studio.hasPermission('generate');
+  const canQueue=Studio.hasPermission('manage_queue');
+  const canApprove=Studio.hasPermission('vote_approval');
+  const canMetrics=Studio.hasPermission('import_metrics');
+  const canCompare=Studio.hasPermission('compare');
+
+  ['saveCore','saveSettingsTab','syncProjectServer','pullProjectsServer'].forEach(id=>_setActionAvailability(id,canSave,'Tato role nemůže ukládat/synchronizovat.'));
+  ['genTitles','genDescs','runRetention','mineClips','runFullWorkflow'].forEach(id=>_setActionAvailability(id,canGenerate,'Tato role nemůže spouštět generování.'));
+  ['enqueuePublishJob','runSchedulerNow','runServerSchedulerNow','pullServerQueue'].forEach(id=>_setActionAvailability(id,canQueue,'Tato role nemůže spravovat publish frontu.'));
+  ['saveApprovalState','saveApprovalPolicy','voteApprove','voteReject'].forEach(id=>_setActionAvailability(id,canApprove,'Tato role nemůže měnit approval workflow.'));
+  ['ingestPerformance'].forEach(id=>_setActionAvailability(id,canMetrics,'Tato role nemůže importovat performance metriky.'));
+  ['compareVariantsBtn'].forEach(id=>_setActionAvailability(id,canCompare,'Tato role nemůže porovnávat varianty.'));
+}
 let activeSettingsSection='prompts';
 function activateSettingsSection(sec='prompts'){
   activeSettingsSection=sec;
@@ -832,6 +853,7 @@ function renderSettingsTab(){
     row('Descriptions',t.descriptions),
     row('Growth',t.growth)
   ].map(x=>`<div>${esc(x)}</div>`).join('');
+  refreshRoleUi();
 }
 function readSettingsTab(){
   const next=Studio.ensureSettingsShape({
@@ -1370,7 +1392,7 @@ document.getElementById('copyClipPipeline').onclick=async()=>{
   setStatus(ok?'Clip pipeline zkopírován.':'Kopírování clip pipeline selhalo.');
 };
 document.getElementById('thumbScore').onclick=()=>{document.getElementById('thumbScoreOut').textContent='Score: '+Studio.scoreThumb(document.getElementById('thumbText').value)+'/100';};
-document.getElementById('saveSettingsTab').onclick=()=>{if(!requirePermission('save_project','Tato role nemůže ukládat nastavení.')) return; validatePromptFields();readSettingsTab();setStatus('Nastavení projektu uloženo.');};
+document.getElementById('saveSettingsTab').onclick=()=>{if(!requirePermission('save_project','Tato role nemůže ukládat nastavení.')) return; validatePromptFields();readSettingsTab();refreshRoleUi();setStatus('Nastavení projektu uloženo.');};
 document.getElementById('syncProjectServer').onclick=()=>{
   runWithBusy('syncProjectServer', async()=>{
     await Studio.syncProjectToServer(Studio.state);
@@ -1933,7 +1955,7 @@ document.addEventListener('keydown',(e)=>{
   }
 });
 
-renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderClipPipeline();renderABBoard();renderPublishQueue();renderChannelProfile();renderApprovalVotes();renderAuditLog();renderServerAudit([]);renderAnalyticsHub();renderPerformance();renderAbPlanner();renderMarketplace();renderErrorPanel();
+renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderClipPipeline();renderABBoard();renderPublishQueue();renderChannelProfile();renderApprovalVotes();renderAuditLog();renderServerAudit([]);renderAnalyticsHub();renderPerformance();renderAbPlanner();renderMarketplace();renderErrorPanel();refreshRoleUi();
 {
   const m=String(location.hash||'').match(/^#settings\/([a-z-]+)/i);
   if(m){
