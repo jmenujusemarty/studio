@@ -290,3 +290,21 @@ test('custom marketplace templates can be added and removed', () => {
   const listAfter = Studio.getMarketplaceTemplates();
   assert.ok(!listAfter.some((x) => x.id === 'tpl-custom-x'));
 });
+
+test('role permissions matrix works for owner/editor/reviewer/viewer', () => {
+  const Studio = loadStudio();
+  Studio.state.settings.team.role = 'owner';
+  assert.equal(Studio.hasPermission('manage_queue'), true);
+
+  Studio.state.settings.team.role = 'editor';
+  assert.equal(Studio.hasPermission('generate'), true);
+  assert.equal(Studio.hasPermission('vote_approval'), false);
+
+  Studio.state.settings.team.role = 'reviewer';
+  assert.equal(Studio.hasPermission('vote_approval'), true);
+  assert.equal(Studio.hasPermission('manage_queue'), false);
+
+  Studio.state.settings.team.role = 'viewer';
+  assert.equal(Studio.hasPermission('view'), true);
+  assert.equal(Studio.hasPermission('generate'), false);
+});

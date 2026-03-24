@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS = {
   },
   team: {
     actor: 'owner',
+    role: 'owner',
     reviewers: []
   },
   integrations: {
@@ -88,6 +89,7 @@ function ensureSettingsShape(raw){
     },
     team: {
       actor: String(s.team?.actor ?? base.team.actor),
+      role: String(s.team?.role ?? base.team.role),
       reviewers: Array.isArray(s.team?.reviewers) ? s.team.reviewers.map(x=>String(x)) : []
     },
     integrations: {
@@ -510,6 +512,24 @@ function addAuditEvent(type, message, meta={}){
   state.auditLog=[entry, ...(state.auditLog||[])].slice(0,150);
   save();
   return entry;
+}
+function getActorRole(){
+  const r=String(state.settings?.team?.role || 'owner').toLowerCase();
+  if(['owner','editor','reviewer','viewer'].includes(r)) return r;
+  return 'viewer';
+}
+function hasPermission(action=''){
+  const role=getActorRole();
+  const a=String(action||'').toLowerCase();
+  const matrix={
+    owner:new Set(['*']),
+    editor:new Set(['save_project','generate','manage_queue','build_package','compare','import_metrics']),
+    reviewer:new Set(['vote_approval','view']),
+    viewer:new Set(['view'])
+  };
+  const set=matrix[role] || matrix.viewer;
+  if(set.has('*')) return true;
+  return set.has(a);
 }
 function listAuditLog(limit=50){
   return [...(state.auditLog||[])].slice(0, Math.max(1, Math.min(200, Number(limit||50))));
@@ -1492,7 +1512,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,getAuditApiUrl,getQueueApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,enqueuePublishJob,enqueuePublishJobOnServer,pullPublishQueueFromServer,updatePublishJobStatusOnServer,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,fetchServerAudit,getMarketplaceTemplates,installMarketplaceTemplate,uninstallMarketplaceTemplate,addCustomMarketplaceTemplate,removeCustomMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,buildAbPlanFromCandidates,importAbPlannerResults,exportChannelPayloads,routePublishJobs,compareVariants,ingestPerformanceMetrics,setApprovalState,setApprovalPolicy,addApprovalVote,canPublishNow,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,getAuditApiUrl,getQueueApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,getActorRole,hasPermission,enqueuePublishJob,enqueuePublishJobOnServer,pullPublishQueueFromServer,updatePublishJobStatusOnServer,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,fetchServerAudit,getMarketplaceTemplates,installMarketplaceTemplate,uninstallMarketplaceTemplate,addCustomMarketplaceTemplate,removeCustomMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,buildAbPlanFromCandidates,importAbPlannerResults,exportChannelPayloads,routePublishJobs,compareVariants,ingestPerformanceMetrics,setApprovalState,setApprovalPolicy,addApprovalVote,canPublishNow,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)
