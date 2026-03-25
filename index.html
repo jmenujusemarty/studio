@@ -53,6 +53,7 @@
 @media(max-width:900px){.settings-layout{grid-template-columns:1fr}.settings-nav{position:static;flex-direction:row;flex-wrap:wrap}}
 </style></head><body>
 <nav class="nav"><div class="brand">erem Studio</div><a class="active" href="./">Studio</a><button class="btn s" id="openSettings">Nastavení API</button></nav>
+<div style="position:fixed;right:12px;bottom:12px;z-index:60"><button class="btn s" id="openShortcuts">?</button></div>
 <main class="wrap"><h1 class="page-title">erem Video Studio</h1><p class="page-sub">Přehledný workspace: projekty, title engine, popisky, growth i clipy na jedné stránce.</p>
 
 <div class="kpis">
@@ -400,6 +401,18 @@
       <button class="btn s" id="onboardingBack">Zpět</button>
       <button class="btn p" id="onboardingNext">Další</button>
     </div>
+  </div>
+</div>
+<div class="modal-bg" id="shortcutsModalBg" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="shortcutsTitle">
+    <h3 id="shortcutsTitle">Klávesové zkratky</h3>
+    <div class="mini">
+      <div><b>Cmd/Ctrl + S</b> uložit (Core/Settings podle aktivní záložky)</div>
+      <div><b>Cmd/Ctrl + Enter</b> spustit primární akci aktivní záložky</div>
+      <div><b>Cmd/Ctrl + 1..8</b> přepnout záložky</div>
+      <div><b>?</b> otevřít/zavřít tuto nápovědu</div>
+    </div>
+    <div class="actions"><button class="btn s" id="closeShortcuts">Zavřít</button></div>
   </div>
 </div>
 <script src="app.js"></script>
@@ -955,6 +968,16 @@ function closeSettingsModal(){
   bg.style.display='none';
   bg.setAttribute('aria-hidden','true');
 }
+function openShortcutsModal(){
+  const bg=document.getElementById('shortcutsModalBg');
+  bg.style.display='flex';
+  bg.setAttribute('aria-hidden','false');
+}
+function closeShortcutsModal(){
+  const bg=document.getElementById('shortcutsModalBg');
+  bg.style.display='none';
+  bg.setAttribute('aria-hidden','true');
+}
 
 function fillOutputs(){
   document.getElementById('ytOut').value=Studio.ytText();
@@ -1109,6 +1132,11 @@ document.getElementById('settingsModalBg').onclick=(e)=>{
 document.getElementById('onboardingModalBg').onclick=(e)=>{
   if(e.target.id==='onboardingModalBg') closeOnboarding(false);
 };
+document.getElementById('shortcutsModalBg').onclick=(e)=>{
+  if(e.target.id==='shortcutsModalBg') closeShortcutsModal();
+};
+document.getElementById('openShortcuts').onclick=openShortcutsModal;
+document.getElementById('closeShortcuts').onclick=closeShortcutsModal;
 document.getElementById('onboardingSkip').onclick=()=>closeOnboarding(true);
 document.getElementById('onboardingBack').onclick=()=>{
   onboardingState.step=Math.max(0,onboardingState.step-1);
@@ -1924,6 +1952,12 @@ window.addEventListener('error',(e)=>{ reportError('window.error', e.error || e.
 window.addEventListener('unhandledrejection',(e)=>{ reportError('unhandledrejection', e.reason || 'Promise rejected'); });
 document.addEventListener('keydown',(e)=>{
   const mod=e.metaKey || e.ctrlKey;
+  if(!mod && e.key==='?'){
+    e.preventDefault();
+    const open=document.getElementById('shortcutsModalBg').style.display==='flex';
+    if(open) closeShortcutsModal(); else openShortcutsModal();
+    return;
+  }
   if(!mod) return;
   const activeTab=document.querySelector('.tab.active')?.dataset?.pane || 'core';
   if(e.key.toLowerCase()==='s'){
