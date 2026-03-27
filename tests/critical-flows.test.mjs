@@ -118,6 +118,19 @@ test('retry publish job resets status and increments retry counter', () => {
   assert.equal(next.retryCount, 1);
 });
 
+test('audit log filter can filter by type and query', () => {
+  const Studio = loadStudio();
+  Studio.addAuditEvent('titles', 'Generated titles', { count: 10 });
+  Studio.addAuditEvent('publish', 'Package built', { valid: true });
+  const raw = Studio.listAuditLog(10);
+  const byType = Studio.filterAuditLog(raw, '', 'publish');
+  assert.equal(byType.length, 1);
+  assert.equal(byType[0].type, 'publish');
+  const byQuery = Studio.filterAuditLog(raw, 'generated', 'all');
+  assert.equal(byQuery.length, 1);
+  assert.equal(byQuery[0].type, 'titles');
+});
+
 test('scheduler processes due queued jobs', () => {
   const Studio = loadStudio();
   const past = new Date(Date.now() - 60000).toISOString();

@@ -177,6 +177,10 @@
       <div class="actions"><button class="btn s" id="saveApprovalState">Uložit approval stav</button></div>
       <h3>Audit Log</h3>
       <div class="actions"><button class="btn s" id="loadServerAudit">Načíst server audit</button></div>
+      <div class="row">
+        <div><label>Filtrovat typ</label><select id="auditTypeFilter"><option value="all">all</option><option value="project">project</option><option value="titles">titles</option><option value="descriptions">descriptions</option><option value="clips">clips</option><option value="publish">publish</option><option value="publish_queue">publish_queue</option><option value="scheduler">scheduler</option><option value="approval">approval</option><option value="analytics">analytics</option><option value="marketplace">marketplace</option><option value="performance">performance</option><option value="ab_planner">ab_planner</option><option value="export">export</option></select></div>
+        <div><label>Hledat</label><input id="auditSearch" placeholder="text, actor, meta..."></div>
+      </div>
       <div id="auditLogList"></div>
       <div id="serverAuditBox" class="history-card"></div>
       <h3>Analytics Hub</h3>
@@ -607,12 +611,15 @@ function renderPublishQueue(){
 }
 function renderAuditLog(){
   const box=document.getElementById('auditLogList');
-  const items=Studio.listAuditLog(40);
+  const raw=Studio.listAuditLog(80);
+  const type=document.getElementById('auditTypeFilter')?.value || 'all';
+  const query=document.getElementById('auditSearch')?.value || '';
+  const items=Studio.filterAuditLog(raw, query, type).slice(0,40);
   if(!items.length){
     box.innerHTML='<div class="mini">Audit log je prázdný.</div>';
     return;
   }
-  box.innerHTML=items.map(r=>`<div class="line"><b>${esc(new Date(r.ts).toLocaleString('cs-CZ'))}</b> · ${esc(r.type)} · ${esc(r.message)}</div>`).join('');
+  box.innerHTML=items.map(r=>`<div class="line"><b>${esc(new Date(r.ts).toLocaleString('cs-CZ'))}</b> · ${esc(r.type)} · ${esc(r.message)}${r.actor?` · ${esc(r.actor)}`:''}</div>`).join('');
 }
 function renderServerAudit(items=[]){
   const box=document.getElementById('serverAuditBox');
@@ -2001,6 +2008,8 @@ document.getElementById('timeline').addEventListener('input',()=>validateCoreInp
 document.getElementById('setPromptTitles').addEventListener('input',validatePromptFields);
 document.getElementById('setPromptDescriptions').addEventListener('input',validatePromptFields);
 document.getElementById('setPromptGrowth').addEventListener('input',validatePromptFields);
+document.getElementById('auditTypeFilter').addEventListener('change',renderAuditLog);
+document.getElementById('auditSearch').addEventListener('input',renderAuditLog);
 window.addEventListener('hashchange',()=>{
   const m=String(location.hash||'').match(/^#settings\/([a-z-]+)/i);
   if(!m) return;
