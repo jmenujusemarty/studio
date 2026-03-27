@@ -107,6 +107,17 @@ test('publish queue and audit log helpers work', () => {
   assert.ok(audit.some((x) => x.message.includes('Job queued')));
 });
 
+test('retry publish job resets status and increments retry counter', () => {
+  const Studio = loadStudio();
+  const job = Studio.enqueuePublishJob({ selected: { title: 'Retry me' } }, new Date().toISOString());
+  Studio.updatePublishJobStatus(job.id, 'failed');
+  Studio.retryPublishJob(job.id);
+  const queue = Studio.listPublishQueue();
+  const next = queue.find((x) => x.id === job.id);
+  assert.equal(next.status, 'queued');
+  assert.equal(next.retryCount, 1);
+});
+
 test('scheduler processes due queued jobs', () => {
   const Studio = loadStudio();
   const past = new Date(Date.now() - 60000).toISOString();

@@ -540,6 +540,7 @@ function enqueuePublishJob(payload={}, scheduleAt=''){
     createdAt:new Date().toISOString(),
     scheduleAt:String(scheduleAt || new Date().toISOString()),
     status:'queued',
+    retryCount:0,
     payload: JSON.parse(JSON.stringify(payload||{}))
   };
   state.publishQueue=[...(state.publishQueue||[]), job];
@@ -556,6 +557,22 @@ function updatePublishJobStatus(jobId, status='queued'){
   const next=(state.publishQueue||[]).map(j=>j.id===jobId?{...j,status:s,updatedAt:new Date().toISOString()}:j);
   state.publishQueue=next;
   addAuditEvent('publish_queue', `Job ${s}`, {jobId,status:s});
+  save();
+  return true;
+}
+function retryPublishJob(jobId, scheduleAt=''){
+  const next=(state.publishQueue||[]).map(j=>{
+    if(j.id!==jobId) return j;
+    return {
+      ...j,
+      status:'queued',
+      retryCount:Number(j.retryCount||0)+1,
+      scheduleAt:String(scheduleAt || new Date().toISOString()),
+      updatedAt:new Date().toISOString()
+    };
+  });
+  state.publishQueue=next;
+  addAuditEvent('publish_queue','Job retried',{jobId,retryAt:String(scheduleAt || new Date().toISOString())});
   save();
   return true;
 }
@@ -930,6 +947,19 @@ async function updatePublishJobStatusOnServer(jobId, status='queued', opts={}){
   const queue=Array.isArray(data?.queue) ? data.queue : [];
   state.publishQueue=queue;
   addAuditEvent('publish_queue','Server status update',{jobId:String(jobId||''), status:String(status||'queued')});
+  save();
+  return queue;
+}
+async function retryPublishJobOnServer(jobId, scheduleAt='', opts={}){
+  const data=await _queueApiRequest({
+    action:'retry',
+    projectId:String(state._projectId||''),
+    jobId:String(jobId||''),
+    scheduleAt:String(scheduleAt || new Date().toISOString())
+  }, 'POST', opts);
+  const queue=Array.isArray(data?.queue) ? data.queue : [];
+  state.publishQueue=queue;
+  addAuditEvent('publish_queue','Server retry',{jobId:String(jobId||'')});
   save();
   return queue;
 }
@@ -1512,7 +1542,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,getAuditApiUrl,getQueueApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,getActorRole,hasPermission,enqueuePublishJob,enqueuePublishJobOnServer,pullPublishQueueFromServer,updatePublishJobStatusOnServer,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,fetchServerAudit,getMarketplaceTemplates,installMarketplaceTemplate,uninstallMarketplaceTemplate,addCustomMarketplaceTemplate,removeCustomMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,buildAbPlanFromCandidates,importAbPlannerResults,exportChannelPayloads,routePublishJobs,compareVariants,ingestPerformanceMetrics,setApprovalState,setApprovalPolicy,addApprovalVote,canPublishNow,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,getAuditApiUrl,getQueueApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,getActorRole,hasPermission,enqueuePublishJob,enqueuePublishJobOnServer,pullPublishQueueFromServer,updatePublishJobStatusOnServer,retryPublishJob,retryPublishJobOnServer,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,fetchServerAudit,getMarketplaceTemplates,installMarketplaceTemplate,uninstallMarketplaceTemplate,addCustomMarketplaceTemplate,removeCustomMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,buildAbPlanFromCandidates,importAbPlannerResults,exportChannelPayloads,routePublishJobs,compareVariants,ingestPerformanceMetrics,setApprovalState,setApprovalPolicy,addApprovalVote,canPublishNow,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)

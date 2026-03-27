@@ -106,6 +106,7 @@ if ($action === 'enqueue') {
     'createdAt' => gmdate('c'),
     'scheduleAt' => (string)($in['scheduleAt'] ?? gmdate('c')),
     'status' => 'queued',
+    'retryCount' => 0,
     'payload' => $payload
   ];
   $queue[] = $job;
@@ -147,6 +148,37 @@ if ($action === 'update_status') {
     exit;
   }
   append_audit($auditFile, ['ts'=>gmdate('c'),'service'=>'queue','action'=>'update_status','projectId'=>$projectId,'jobId'=>$jobId,'status'=>$status]);
+  echo json_encode(['ok' => true, 'projectId' => $projectId, 'queue' => $queue], JSON_UNESCAPED_UNICODE);
+  exit;
+}
+
+if ($action === 'retry') {
+  $jobId = trim((string)($in['jobId'] ?? ''));
+  $scheduleAt = (string)($in['scheduleAt'] ?? gmdate('c'));
+  if ($jobId === '') {
+    http_response_code(400);
+    echo json_encode(['error' => 'Missing jobId'], JSON_UNESCAPED_UNICODE);
+    exit;
+  }
+
+  foreach ($queue as &$job) {
+    if (!is_array($job)) continue;
+    if ((string)($job['id'] ?? '') !== $jobId) continue;
+    $job['status'] = 'queued';
+    $job['scheduleAt'] = $scheduleAt;
+    $job['retryCount'] = (int)($job['retryCount'] ?? 0) + 1;
+    $job['updatedAt'] = gmdate('c');
+    break;
+  }
+  unset($job);
+
+  $store['projects'][$projectId] = $queue;
+  if (!write_store($storeFile, $store)) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Unable to persist queue'], JSON_UNESCAPED_UNICODE);
+    exit;
+  }
+  append_audit($auditFile, ['ts'=>gmdate('c'),'service'=>'queue','action'=>'retry','projectId'=>$projectId,'jobId'=>$jobId,'scheduleAt'=>$scheduleAt]);
   echo json_encode(['ok' => true, 'projectId' => $projectId, 'queue' => $queue], JSON_UNESCAPED_UNICODE);
   exit;
 }

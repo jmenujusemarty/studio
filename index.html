@@ -603,7 +603,7 @@ function renderPublishQueue(){
     box.innerHTML='<div class="mini">Fronta je prázdná.</div>';
     return;
   }
-  box.innerHTML=items.map(j=>`<div class="line"><b>${esc(j.status)}</b> · ${esc(new Date(j.scheduleAt||j.createdAt).toLocaleString('cs-CZ'))} · ${esc(j.id)} <button class="btn s queue-status" data-id="${esc(j.id)}" data-status="running">Start</button> <button class="btn s queue-status" data-id="${esc(j.id)}" data-status="done">Done</button> <button class="btn s queue-status" data-id="${esc(j.id)}" data-status="failed">Fail</button></div>`).join('');
+  box.innerHTML=items.map(j=>`<div class="line"><b>${esc(j.status)}</b> · retry ${esc(String(j.retryCount||0))} · ${esc(new Date(j.scheduleAt||j.createdAt).toLocaleString('cs-CZ'))} · ${esc(j.id)} <button class="btn s queue-status" data-id="${esc(j.id)}" data-status="running">Start</button> <button class="btn s queue-status" data-id="${esc(j.id)}" data-status="done">Done</button> <button class="btn s queue-status" data-id="${esc(j.id)}" data-status="failed">Fail</button> <button class="btn s queue-retry" data-id="${esc(j.id)}">Retry</button></div>`).join('');
 }
 function renderAuditLog(){
   const box=document.getElementById('auditLogList');
@@ -1806,6 +1806,18 @@ document.getElementById('enqueuePublishJob').onclick=()=>{
   setStatus('Job přidán do publish fronty.');
 };
 document.getElementById('publishQueueList').addEventListener('click',(e)=>{
+  const retryBtn=e.target.closest('.queue-retry');
+  if(retryBtn){
+    const id=retryBtn.getAttribute('data-id');
+    if(!id) return;
+    if(!requirePermission('manage_queue','Tato role nemůže retryovat joby.')) return;
+    Studio.retryPublishJob(id);
+    Studio.retryPublishJobOnServer(id).catch(err=>reportError('Server queue retry', err, ()=>Studio.retryPublishJobOnServer(id)));
+    renderPublishQueue();
+    renderAuditLog();
+    setStatus(`Job ${id} vrácen do queue.`);
+    return;
+  }
   const btn=e.target.closest('.queue-status');
   if(!btn) return;
   const id=btn.getAttribute('data-id');
