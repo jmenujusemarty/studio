@@ -101,6 +101,7 @@ function ensureSettingsShape(raw){
     },
     marketplace: {
       installed: Array.isArray(s.marketplace?.installed) ? s.marketplace.installed.map(x=>String(x)) : [],
+      ratings: (s.marketplace?.ratings && typeof s.marketplace.ratings==='object') ? Object.fromEntries(Object.entries(s.marketplace.ratings).map(([k,v])=>[String(k), Number(v||0)])) : {},
       customTemplates: Array.isArray(s.marketplace?.customTemplates) ? s.marketplace.customTemplates.map(t=>({
         id: String(t?.id || `tpl-${Date.now().toString(36)}`),
         name: String(t?.name || 'Custom Template'),
@@ -688,7 +689,10 @@ function getMarketplaceTemplates(){
     }
   ];
   const custom = Array.isArray(state.settings?.marketplace?.customTemplates) ? state.settings.marketplace.customTemplates : [];
-  return [...base, ...custom];
+  const ratings = state.settings?.marketplace?.ratings || {};
+  return [...base, ...custom]
+    .map(t=>({...t, rating:Number(ratings[t.id] || 0)}))
+    .sort((a,b)=>Number(b.rating||0)-Number(a.rating||0) || String(a.name).localeCompare(String(b.name),'cs'));
 }
 function installMarketplaceTemplate(templateId=''){
   const id=String(templateId||'').trim();
@@ -742,6 +746,19 @@ function removeCustomMarketplaceTemplate(templateId=''){
   s.marketplace.installed=(s.marketplace.installed||[]).filter(x=>x!==id);
   state.settings=s;
   addAuditEvent('marketplace','Custom template removed',{templateId:id});
+  save();
+  return true;
+}
+function rateMarketplaceTemplate(templateId='', delta=1){
+  const id=String(templateId||'').trim();
+  if(!id) return false;
+  const s=ensureSettingsShape(state.settings);
+  const ratings=(s.marketplace.ratings && typeof s.marketplace.ratings==='object') ? {...s.marketplace.ratings} : {};
+  const next=Math.max(-5, Math.min(5, Number(ratings[id] || 0) + Number(delta||0)));
+  ratings[id]=next;
+  s.marketplace.ratings=ratings;
+  state.settings=s;
+  addAuditEvent('marketplace','Template rated',{templateId:id,rating:next});
   save();
   return true;
 }
@@ -1554,7 +1571,7 @@ function removeProject(id){
   return true;
 }
 
-window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,getAuditApiUrl,getQueueApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,filterAuditLog,getActorRole,hasPermission,enqueuePublishJob,enqueuePublishJobOnServer,pullPublishQueueFromServer,updatePublishJobStatusOnServer,retryPublishJob,retryPublishJobOnServer,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,fetchServerAudit,getMarketplaceTemplates,installMarketplaceTemplate,uninstallMarketplaceTemplate,addCustomMarketplaceTemplate,removeCustomMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,buildAbPlanFromCandidates,importAbPlannerResults,exportChannelPayloads,routePublishJobs,compareVariants,ingestPerformanceMetrics,setApprovalState,setApprovalPolicy,addApprovalVote,canPublishNow,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
+window.Studio={state,save,bindCore,spotifyLines,normalizedTimelineItems,ytText,spText,copy,scoreTitle,scoreThumb,retentionHints,mineClips,trendRadar,buildPromptForTitleAI,suggestTitlesFromTranscript,refreshDailyTrendData,trendDrivenTitleVariants,callCodex,generateStrategicTitles,generateSmartDescriptions,generateGrowthAndClips,getCodexApiUrl,setCodexApiUrl,getApiAccessToken,setApiAccessToken,getProjectsApiUrl,setProjectsApiUrl,getAnalyticsApiUrl,getSchedulerApiUrl,getAuditApiUrl,getQueueApiUrl,syncProjectToServer,deleteProjectOnServer,pullProjectsFromServer,replaceAllLocalProjects,addAuditEvent,listAuditLog,filterAuditLog,getActorRole,hasPermission,enqueuePublishJob,enqueuePublishJobOnServer,pullPublishQueueFromServer,updatePublishJobStatusOnServer,retryPublishJob,retryPublishJobOnServer,listPublishQueue,updatePublishJobStatus,runDuePublishJobs,runDuePublishJobsOnServer,fetchAnalyticsSnapshot,fetchServerAudit,getMarketplaceTemplates,installMarketplaceTemplate,uninstallMarketplaceTemplate,addCustomMarketplaceTemplate,removeCustomMarketplaceTemplate,rateMarketplaceTemplate,buildClipPipelineFromClips,setAbPlannerPlan,buildAbPlanFromCandidates,importAbPlannerResults,exportChannelPayloads,routePublishJobs,compareVariants,ingestPerformanceMetrics,setApprovalState,setApprovalPolicy,addApprovalVote,canPublishNow,recomputeChannelProfile,ensureSettingsShape,buildAdaptivePrompt,updatePromptOptimizer,getBaseToolRegistry,getMergedToolRegistry,addCustomToolToSettings,upsertToolContractInSettings,validateToolContractPayload,isValidVideoUrl,validateTimelineText,addGenerationSnapshot,listGenerationHistory,rollbackGenerationSnapshot,defaultSettings:DEFAULT_SETTINGS,listProjects,selectProject,removeProject};
 
 
 // advanced title engine (transcript + current title + trend/algorithm guard)

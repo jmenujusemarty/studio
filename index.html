@@ -706,7 +706,7 @@ function renderMarketplace(){
   const installed = new Set((Studio.state.settings?.marketplace?.installed)||[]);
   const list=Studio.getMarketplaceTemplates();
   const customIds=new Set(((Studio.state.settings?.marketplace?.customTemplates)||[]).map(x=>x.id));
-  box.innerHTML=list.map(t=>`<div class="line"><b>${esc(t.name)}</b> · ${esc(t.type)} ${installed.has(t.id)?'<span class="mini">(installed)</span>':''} <button class="btn s install-marketplace" data-id="${esc(t.id)}">Instalovat</button> <button class="btn s uninstall-marketplace" data-id="${esc(t.id)}">Odebrat</button> ${customIds.has(t.id)?`<button class="btn s remove-custom-template" data-id="${esc(t.id)}">Smazat custom</button>`:''}</div>`).join('');
+  box.innerHTML=list.map(t=>`<div class="line"><b>${esc(t.name)}</b> · ${esc(t.type)} · rating ${esc(String(t.rating||0))} ${installed.has(t.id)?'<span class="mini">(installed)</span>':''} <button class="btn s install-marketplace" data-id="${esc(t.id)}">Instalovat</button> <button class="btn s uninstall-marketplace" data-id="${esc(t.id)}">Odebrat</button> <button class="btn s rate-marketplace" data-id="${esc(t.id)}" data-delta="1">+</button> <button class="btn s rate-marketplace" data-id="${esc(t.id)}" data-delta="-1">-</button> ${customIds.has(t.id)?`<button class="btn s remove-custom-template" data-id="${esc(t.id)}">Smazat custom</button>`:''}</div>`).join('');
 }
 function refreshChannelProfile(){
   Studio.recomputeChannelProfile();
@@ -1655,7 +1655,8 @@ document.getElementById('marketplaceList').addEventListener('click',(e)=>{
   const installBtn=e.target.closest('.install-marketplace');
   const uninstallBtn=e.target.closest('.uninstall-marketplace');
   const removeBtn=e.target.closest('.remove-custom-template');
-  const btn=installBtn || uninstallBtn || removeBtn;
+  const rateBtn=e.target.closest('.rate-marketplace');
+  const btn=installBtn || uninstallBtn || removeBtn || rateBtn;
   if(!btn) return;
   const id=btn.getAttribute('data-id');
   if(!id) return;
@@ -1681,6 +1682,14 @@ document.getElementById('marketplaceList').addEventListener('click',(e)=>{
     renderSettingsTab();
     renderMarketplace();
     setStatus(`Custom template smazán: ${id}.`);
+    return;
+  }
+  if(rateBtn){
+    const delta=Number(rateBtn.getAttribute('data-delta') || 0);
+    Studio.rateMarketplaceTemplate(id, delta);
+    renderMarketplace();
+    renderAuditLog();
+    setStatus(`Template ohodnocen: ${id}.`);
   }
 });
 document.getElementById('saveCustomTpl').onclick=()=>{

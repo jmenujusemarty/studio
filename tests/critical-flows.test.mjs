@@ -315,6 +315,15 @@ test('custom marketplace templates can be added and removed', () => {
   assert.ok(!listAfter.some((x) => x.id === 'tpl-custom-x'));
 });
 
+test('marketplace rating updates template score', () => {
+  const Studio = loadStudio();
+  const ok = Studio.rateMarketplaceTemplate('tpl-cz-viral-titles', 1);
+  assert.equal(ok, true);
+  const list = Studio.getMarketplaceTemplates();
+  const tpl = list.find((x) => x.id === 'tpl-cz-viral-titles');
+  assert.equal(tpl.rating, 1);
+});
+
 test('role permissions matrix works for owner/editor/reviewer/viewer', () => {
   const Studio = loadStudio();
   Studio.state.settings.team.role = 'owner';
