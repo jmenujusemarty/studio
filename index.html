@@ -51,6 +51,12 @@
 @media(max-width:900px){.tool-grid{grid-template-columns:1fr}}
 @media(max-width:900px){.ab-grid{grid-template-columns:1fr}}
 @media(max-width:900px){.settings-layout{grid-template-columns:1fr}.settings-nav{position:static;flex-direction:row;flex-wrap:wrap}}
+.mobile-actions{display:none}
+@media(max-width:900px){
+  body{padding-bottom:74px}
+  .mobile-actions{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:70;background:rgba(255,255,255,.96);border-top:1px solid #dbe2ef;padding:10px;gap:8px}
+  .mobile-actions .btn{flex:1}
+}
 </style></head><body>
 <nav class="nav"><div class="brand">erem Studio</div><a class="active" href="./">Studio</a><button class="btn s" id="openSettings">Nastavení API</button></nav>
 <div style="position:fixed;right:12px;bottom:12px;z-index:60"><button class="btn s" id="openShortcuts">?</button></div>
@@ -372,6 +378,10 @@
     </div>
   </section>
 </div></main>
+<div class="mobile-actions" id="mobileActions">
+  <button class="btn s" id="mobileSecondary">Sekce</button>
+  <button class="btn p" id="mobilePrimary">Akce</button>
+</div>
 <div class="modal-bg" id="settingsModalBg" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
     <h3 id="settingsTitle">LLM API nastavení</h3>
@@ -1059,6 +1069,31 @@ function activateTab(tab){
   if(tab.dataset.pane==='settings'){
     activateSettingsSection(activeSettingsSection);
   }
+  refreshMobileActions();
+}
+function getPrimaryActionByPane(pane='core'){
+  const map={
+    core:'saveCore',
+    titles:'genTitles',
+    descs:'genDescs',
+    growth:'runRetention',
+    clips:'mineClips',
+    abpublish:'buildPublishPackage',
+    settings:'saveSettingsTab',
+    tools:'addToolScaffold'
+  };
+  return map[pane] || 'saveCore';
+}
+function refreshMobileActions(){
+  const pane=document.querySelector('.tab.active')?.dataset?.pane || 'core';
+  const primary=document.getElementById('mobilePrimary');
+  const secondary=document.getElementById('mobileSecondary');
+  if(!primary || !secondary) return;
+  const actionId=getPrimaryActionByPane(pane);
+  const actionBtn=document.getElementById(actionId);
+  primary.dataset.target=actionId;
+  primary.textContent=actionBtn ? (actionBtn.textContent || 'Akce') : 'Akce';
+  secondary.textContent=`Sekce: ${pane}`;
 }
 
 for(const t of document.querySelectorAll('.tab')){
@@ -1153,6 +1188,18 @@ document.getElementById('openVideo').onclick=()=>{
   document.getElementById('videoUrl').dispatchEvent(new Event('change'));
   renderSettingsTab();
   setStatus('Video URL nastaveno.');
+};
+document.getElementById('mobilePrimary').onclick=()=>{
+  const id=document.getElementById('mobilePrimary').dataset.target || '';
+  const btn=id ? document.getElementById(id) : null;
+  if(btn && !btn.disabled) btn.click();
+};
+document.getElementById('mobileSecondary').onclick=()=>{
+  const tabs=[...document.querySelectorAll('.tab')];
+  const active=document.querySelector('.tab.active');
+  const idx=tabs.indexOf(active);
+  const next=tabs[(idx+1)%tabs.length];
+  if(next) activateTab(next);
 };
 
 async function runWithBusy(buttonId, fn){
@@ -1989,7 +2036,7 @@ document.addEventListener('keydown',(e)=>{
   }
 });
 
-renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderClipPipeline();renderABBoard();renderPublishQueue();renderChannelProfile();renderApprovalVotes();renderAuditLog();renderServerAudit([]);renderAnalyticsHub();renderPerformance();renderAbPlanner();renderMarketplace();renderErrorPanel();refreshRoleUi();
+renderSettingsTab();renderPresetSelect();renderToolCatalog();fillOutputs();renderProjects();renderOutliers();updateKpis();validatePromptFields();validateCoreInputs(false);activateSettingsSection(activeSettingsSection);renderAllHistory();renderClipPipeline();renderABBoard();renderPublishQueue();renderChannelProfile();renderApprovalVotes();renderAuditLog();renderServerAudit([]);renderAnalyticsHub();renderPerformance();renderAbPlanner();renderMarketplace();renderErrorPanel();refreshRoleUi();refreshMobileActions();
 {
   const m=String(location.hash||'').match(/^#settings\/([a-z-]+)/i);
   if(m){
