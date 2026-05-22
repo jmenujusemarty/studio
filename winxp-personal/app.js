@@ -1,122 +1,72 @@
-const windows = [...document.querySelectorAll('[data-window-panel]')];
-const triggers = [...document.querySelectorAll('[data-window]')];
-const taskApps = [...document.querySelectorAll('.task-app')];
-const icons = [...document.querySelectorAll('.desktop-icon[data-window]')];
-const startMenu = document.getElementById('startMenu');
 const startButton = document.getElementById('startButton');
+const startMenu = document.getElementById('startMenu');
 const clock = document.getElementById('clock');
-let topZ = 40;
+const detailsPanel = document.getElementById('detailsPanel');
 
-function setClock() {
+const sections = {
+  about: {
+    title: 'About Me',
+    text: 'Jsem Marty. Stavim weby, male produkty, automatizace a retro digitalni veci s vlastnim charakterem.'
+  },
+  computer: {
+    title: 'My Computer',
+    text: 'Cesta: C:\\Documents and Settings\\Marty\\Portfolio. Tady je rozcestnik na projekty, odkazy a kontakt.'
+  },
+  bin: {
+    title: 'Recycling Bin',
+    text: 'Tady konci nudne sablony, genericke landing pages a veci bez nazoru.'
+  },
+  resume: {
+    title: 'My Resume',
+    text: 'Profil je pripraveny na doplneni realneho CV, klientu, stacku a rychlych odkazu.'
+  },
+  work: {
+    title: 'My Work',
+    text: 'AI Studio, webove nastroje, automatizace, obsahove systemy a hrave mikrostranky.'
+  },
+  hobbies: {
+    title: 'My Hobbies',
+    text: 'Retro UI, fotografie, experimenty, hry s webovou grafikou a veci, ktere pusobi jako z jine doby.'
+  }
+};
+
+function updateClock() {
   const now = new Date();
-  clock.textContent = now.toLocaleTimeString('cs-CZ', {
-    hour: '2-digit',
+  clock.textContent = now.toLocaleTimeString('en-US', {
+    hour: 'numeric',
     minute: '2-digit'
   });
 }
 
-function syncActive(id) {
-  taskApps.forEach((button) => button.classList.toggle('is-active', button.dataset.window === id));
-  icons.forEach((button) => button.classList.toggle('is-active', button.dataset.window === id));
+function showSection(key) {
+  const section = sections[key] || sections.about;
+  detailsPanel.innerHTML = `
+    <div class="details-title"><span class="tiny-icon info"></span><strong>${section.title}</strong></div>
+    <p>${section.text}</p>
+  `;
+  startMenu.classList.remove('open');
 }
 
-function openWindow(id) {
-  const panel = document.querySelector(`[data-window-panel="${id}"]`);
-  if (!panel) return;
-
-  panel.classList.add('is-open');
-  focusWindow(panel);
-  syncActive(id);
-  startMenu.classList.remove('is-open');
-}
-
-function closeWindow(id) {
-  const panel = document.querySelector(`[data-window-panel="${id}"]`);
-  if (!panel) return;
-
-  panel.classList.remove('is-open', 'is-front');
-  const next = windows.find((windowPanel) => windowPanel.classList.contains('is-open'));
-  if (next) {
-    focusWindow(next);
-    syncActive(next.dataset.windowPanel);
-  }
-}
-
-function focusWindow(panel) {
-  topZ += 1;
-  windows.forEach((windowPanel) => windowPanel.classList.remove('is-front'));
-  panel.classList.add('is-front');
-  panel.style.zIndex = topZ;
-}
-
-function makeDraggable(panel) {
-  const titlebar = panel.querySelector('.window-titlebar');
-  let startX = 0;
-  let startY = 0;
-  let panelX = 0;
-  let panelY = 0;
-  let dragging = false;
-
-  titlebar.addEventListener('pointerdown', (event) => {
-    if (window.matchMedia('(max-width: 820px)').matches) return;
-    dragging = true;
-    focusWindow(panel);
-    startX = event.clientX;
-    startY = event.clientY;
-    const rect = panel.getBoundingClientRect();
-    panelX = rect.left;
-    panelY = rect.top;
-    titlebar.setPointerCapture(event.pointerId);
-  });
-
-  titlebar.addEventListener('pointermove', (event) => {
-    if (!dragging) return;
-    const nextX = Math.max(8, Math.min(window.innerWidth - panel.offsetWidth - 8, panelX + event.clientX - startX));
-    const nextY = Math.max(8, Math.min(window.innerHeight - panel.offsetHeight - 48, panelY + event.clientY - startY));
-    panel.style.left = `${nextX}px`;
-    panel.style.top = `${nextY}px`;
-  });
-
-  titlebar.addEventListener('pointerup', (event) => {
-    dragging = false;
-    titlebar.releasePointerCapture(event.pointerId);
-  });
-}
-
-triggers.forEach((trigger) => {
-  trigger.addEventListener('click', () => openWindow(trigger.dataset.window));
+document.querySelectorAll('[data-section]').forEach((item) => {
+  item.addEventListener('click', () => showSection(item.dataset.section));
 });
 
-document.querySelectorAll('[data-close]').forEach((button) => {
-  button.addEventListener('click', (event) => {
-    event.stopPropagation();
-    closeWindow(button.dataset.close);
-  });
-});
-
-windows.forEach((panel) => {
-  panel.addEventListener('pointerdown', () => {
-    focusWindow(panel);
-    syncActive(panel.dataset.windowPanel);
-  });
-  makeDraggable(panel);
-});
-
-startButton.addEventListener('click', () => {
-  startMenu.classList.toggle('is-open');
+startButton.addEventListener('click', (event) => {
+  event.stopPropagation();
+  startMenu.classList.toggle('open');
 });
 
 document.addEventListener('click', (event) => {
   if (!startMenu.contains(event.target) && !startButton.contains(event.target)) {
-    startMenu.classList.remove('is-open');
+    startMenu.classList.remove('open');
   }
 });
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
-    startMenu.classList.remove('is-open');
+    startMenu.classList.remove('open');
   }
 });
 
-setClock();
-setInterval(setClock, 15000);
+updateClock();
+setInterval(updateClock, 15000);

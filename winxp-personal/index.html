@@ -3,206 +3,89 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Marty XP</title>
-  <meta name="description" content="Osobni retro Windows XP web s projekty, kontaktem a hravym desktopem.">
+  <title>Marty XP - Home Page</title>
+  <meta name="description" content="Osobni web ve stylu Windows XP desktopu.">
   <link rel="stylesheet" href="/winxp-personal/styles.css">
 </head>
 <body>
-  <div class="boot-screen" id="bootScreen" aria-hidden="true">
-    <div class="boot-card">
-      <div class="xp-logo">
-        <span></span><span></span><span></span><span></span>
-      </div>
-      <p>Microsoft Windows XP</p>
-      <div class="boot-loader"><i></i></div>
-    </div>
-  </div>
-
-  <main class="desktop" id="desktop">
-    <div class="crt-filter"></div>
-    <div class="wallpaper-glow one"></div>
-    <div class="wallpaper-glow two"></div>
-
-    <section class="desktop-icons" aria-label="Plocha">
-      <button class="desktop-icon is-active" data-window="about">
-        <span class="icon monitor"></span>
-        <span>O mne</span>
-      </button>
-      <button class="desktop-icon" data-window="projects">
-        <span class="icon folder"></span>
-        <span>Projekty</span>
-      </button>
-      <button class="desktop-icon" data-window="lab">
-        <span class="icon chip"></span>
-        <span>Laborator</span>
-      </button>
-      <button class="desktop-icon" data-window="contact">
-        <span class="icon mail"></span>
-        <span>Kontakt</span>
-      </button>
-      <a class="desktop-icon" href="https://github.com/" target="_blank" rel="noreferrer">
-        <span class="icon globe"></span>
-        <span>GitHub</span>
-      </a>
+  <main class="xp-desktop">
+    <section class="desktop-icons" aria-label="Desktop shortcuts">
+      <button class="desktop-shortcut" data-section="computer"><span class="icon computer"></span><span>My Computer</span></button>
+      <button class="desktop-shortcut" data-section="bin"><span class="icon bin"></span><span>Recycling Bin</span></button>
+      <button class="desktop-shortcut" data-section="resume"><span class="icon doc"></span><span>My Resume</span></button>
+      <a class="desktop-shortcut" href="https://www.linkedin.com/" target="_blank" rel="noreferrer"><span class="icon linkedin"></span><span>My LinkedIn</span></a>
+      <a class="desktop-shortcut" href="https://github.com/" target="_blank" rel="noreferrer"><span class="icon github"></span><span>My Github</span></a>
+      <button class="desktop-shortcut" data-section="work"><span class="icon briefcase"></span><span>My Work</span></button>
+      <button class="desktop-shortcut" data-section="hobbies"><span class="icon camera"></span><span>My Hobbies</span></button>
     </section>
 
-    <section class="window window-about is-open" id="window-about" data-window-panel="about" style="--x: 19vw; --y: 10vh;">
-      <header class="window-titlebar">
-        <div class="title-left">
-          <span class="title-icon monitor-mini"></span>
-          <strong>Marty.exe</strong>
-        </div>
-        <div class="window-actions" aria-hidden="true">
-          <button>_</button><button>[]</button><button data-close="about">x</button>
-        </div>
+    <section class="explorer-window" aria-label="Quick Start Guide">
+      <header class="window-title">
+        <div class="title-name"><span class="tiny-icon folder"></span>Quick Start Guide</div>
+        <div class="window-buttons" aria-hidden="true"><button>_</button><button>[]</button><button>x</button></div>
       </header>
-      <div class="window-toolbar">
-        <button>Zpet</button><button>Vpred</button><button>Hledat</button>
-        <span class="address">C:\Documents and Settings\Marty\Portfolio</span>
+
+      <nav class="window-menu" aria-label="Explorer menu">
+        <button>File</button>
+        <button>Edit</button>
+        <button>View</button>
+        <button>Favourites</button>
+        <button>Tools</button>
+        <button>Help</button>
+      </nav>
+
+      <div class="toolbar">
+        <button class="tool-button"><span class="tool-icon back"></span>Back</button>
+        <span class="separator"></span>
+        <button class="tool-button disabled"><span class="tool-icon forward"></span></button>
+        <button class="tool-button"><span class="tool-icon folder"></span></button>
+        <button class="tool-button"><span class="tool-icon search"></span>Search</button>
+        <button class="tool-button"><span class="tool-icon folders"></span>Folders</button>
+        <button class="tool-button"><span class="tool-icon view"></span></button>
       </div>
-      <div class="window-content about-grid">
-        <div class="hero-copy">
-          <p class="eyebrow">osobni web / vedlejsi produkt</p>
-          <h1>Marty<br><span>v rezimu Windows XP.</span></h1>
-          <p class="lead">Delam weby, nastroje a digitalni systemy, ktere maji charakter. Tohle je moje retro plocha: rychly rozcestnik, vizitka a hrave portfolio v jednom.</p>
-          <div class="hero-actions">
-            <button class="xp-button primary" data-window="projects">Otevrit projekty</button>
-            <button class="xp-button" data-window="contact">Napsat zpravu</button>
-          </div>
-        </div>
-        <div class="profile-panel">
-          <div class="avatar">
-            <span>M</span>
-          </div>
-          <dl>
-            <div><dt>Role</dt><dd>Builder / maker / web</dd></div>
-            <div><dt>Status</dt><dd><span class="online-dot"></span> online</dd></div>
-            <div><dt>Signal</dt><dd>retro, AI, produkty</dd></div>
-          </dl>
-        </div>
+
+      <form class="address-bar">
+        <label for="address">Address</label>
+        <div class="address-input"><span class="tiny-icon folder"></span><input id="address" value="Quick Start Guide" readonly></div>
+        <button type="button"><span class="go-icon"></span>Go</button>
+      </form>
+
+      <div class="explorer-body">
+        <section class="guide-copy">
+          <h1>Welcome To Marty's Personal Website</h1>
+          <p>Learn more about me by clicking any of the icons below to get started!</p>
+        </section>
+
+        <section class="shortcut-grid" aria-label="Quick links">
+          <button class="folder-shortcut" data-section="about"><span class="large-icon person"></span><span>About Me</span></button>
+          <a class="folder-shortcut" href="https://github.com/" target="_blank" rel="noreferrer"><span class="large-icon github"></span><span>My GitHub Profile</span></a>
+          <a class="folder-shortcut" href="https://www.linkedin.com/" target="_blank" rel="noreferrer"><span class="large-icon linkedin"></span><span>My Linkedin</span></a>
+          <button class="folder-shortcut" data-section="resume"><span class="large-icon resume"></span><span>My Resume</span></button>
+          <button class="folder-shortcut" data-section="work"><span class="large-icon work"></span><span>My Work</span></button>
+          <a class="folder-shortcut" href="mailto:hello@example.com"><span class="large-icon email"></span><span>Send Me An Email</span></a>
+          <button class="folder-shortcut" data-section="hobbies"><span class="large-icon photos"></span><span>My Photography Collection</span></button>
+        </section>
+
+        <section class="details-panel" id="detailsPanel">
+          <div class="details-title"><span class="tiny-icon info"></span><strong>Quick Start Guide</strong></div>
+          <p>Jsem Marty. Stavim weby, male produkty, automatizace a retro digitalni veci s vlastnim charakterem.</p>
+        </section>
       </div>
     </section>
 
-    <section class="window window-projects" id="window-projects" data-window-panel="projects" style="--x: 42vw; --y: 14vh;">
-      <header class="window-titlebar">
-        <div class="title-left">
-          <span class="title-icon folder-mini"></span>
-          <strong>Projekty</strong>
-        </div>
-        <div class="window-actions" aria-hidden="true">
-          <button>_</button><button>[]</button><button data-close="projects">x</button>
-        </div>
-      </header>
-      <div class="window-content">
-        <div class="explorer-layout">
-          <nav class="explorer-tree">
-            <span class="tree-title">Slozky</span>
-            <button class="tree-item is-selected">Moje projekty</button>
-            <button class="tree-item">Experimenty</button>
-            <button class="tree-item">Archiv</button>
-          </nav>
-          <div class="project-list">
-            <article class="project-row">
-              <span class="file-icon app"></span>
-              <div>
-                <h2>AI Studio</h2>
-                <p>Nastroje pro obsah, analyzu, publikovani a automatizace.</p>
-              </div>
-              <span class="file-meta">produkt</span>
-            </article>
-            <article class="project-row">
-              <span class="file-icon web"></span>
-              <div>
-                <h2>Retro weby</h2>
-                <p>Interaktivni mikrostranky se silnou vizualni identitou.</p>
-              </div>
-              <span class="file-meta">web</span>
-            </article>
-            <article class="project-row">
-              <span class="file-icon tool"></span>
-              <div>
-                <h2>Automatizace</h2>
-                <p>Male systemy, ktere ubiraji rutinu a drzi provoz pohromade.</p>
-              </div>
-              <span class="file-meta">ops</span>
-            </article>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="window window-lab" id="window-lab" data-window-panel="lab" style="--x: 16vw; --y: 44vh;">
-      <header class="window-titlebar">
-        <div class="title-left">
-          <span class="title-icon chip-mini"></span>
-          <strong>Laborator</strong>
-        </div>
-        <div class="window-actions" aria-hidden="true">
-          <button>_</button><button>[]</button><button data-close="lab">x</button>
-        </div>
-      </header>
-      <div class="window-content lab-content">
-        <p class="terminal-line">C:\marty&gt; spoustim osobni radar...</p>
-        <div class="meter"><span style="--value: 86%"></span></div>
-        <ul class="lab-list">
-          <li><strong>AI workflow</strong><span>prototypy a nastroje</span></li>
-          <li><strong>Design s nazorem</strong><span>retro, brutal, systemy</span></li>
-          <li><strong>Rychle dodani</strong><span>staticke weby a male appky</span></li>
-        </ul>
-      </div>
-    </section>
-
-    <section class="window window-contact" id="window-contact" data-window-panel="contact" style="--x: 52vw; --y: 47vh;">
-      <header class="window-titlebar">
-        <div class="title-left">
-          <span class="title-icon mail-mini"></span>
-          <strong>Kontakt</strong>
-        </div>
-        <div class="window-actions" aria-hidden="true">
-          <button>_</button><button>[]</button><button data-close="contact">x</button>
-        </div>
-      </header>
-      <div class="window-content contact-content">
-        <h2>Mas napad nebo projekt?</h2>
-        <p>Nejrychlejsi cesta je napsat primo. Tenhle blok je pripraveny na doplneni realneho e-mailu, socialu a odkazu.</p>
-        <div class="contact-links">
-          <a href="mailto:hello@example.com">hello@example.com</a>
-          <a href="https://github.com/" target="_blank" rel="noreferrer">github.com</a>
-          <a href="../index.html">zpet na hlavni index</a>
-        </div>
-      </div>
-    </section>
-
-    <aside class="notification">
-      <strong>Tip dne</strong>
-      <span>Dvojklik na ikonu otevre okno. Pretahni okna za modrou listu.</span>
+    <aside class="start-menu" id="startMenu" aria-hidden="true">
+      <div class="start-user"><span>M</span><strong>Marty</strong></div>
+      <button data-section="about">About Me</button>
+      <button data-section="work">My Work</button>
+      <button data-section="hobbies">My Hobbies</button>
+      <a href="mailto:hello@example.com">Contact</a>
     </aside>
 
     <footer class="taskbar">
-      <button class="start-button" id="startButton"><span></span>Start</button>
-      <nav class="taskbar-apps" aria-label="Otevrena okna">
-        <button class="task-app is-active" data-window="about">Marty.exe</button>
-        <button class="task-app" data-window="projects">Projekty</button>
-        <button class="task-app" data-window="lab">Laborator</button>
-        <button class="task-app" data-window="contact">Kontakt</button>
-      </nav>
-      <div class="tray">
-        <span class="tray-light"></span>
-        <time id="clock">--:--</time>
-      </div>
+      <button class="start-button" id="startButton"><span class="windows-mark"></span>start</button>
+      <button class="task-item active"><span class="tiny-icon folder"></span>Quick Start Guide</button>
+      <div class="tray"><span class="tray-icon one"></span><span class="tray-icon two"></span><time id="clock">--:--</time></div>
     </footer>
-
-    <div class="start-menu" id="startMenu" aria-hidden="true">
-      <div class="start-user">
-        <div class="start-avatar">M</div>
-        <strong>Marty</strong>
-      </div>
-      <button data-window="about">O mne</button>
-      <button data-window="projects">Projekty</button>
-      <button data-window="lab">Laborator</button>
-      <button data-window="contact">Kontakt</button>
-      <a href="../index.html">Hlavni index</a>
-    </div>
   </main>
 
   <script src="/winxp-personal/app.js"></script>
