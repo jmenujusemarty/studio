@@ -1,54 +1,131 @@
 const startButton = document.getElementById('startButton');
 const startMenu = document.getElementById('startMenu');
+const taskbar = document.getElementById('tasks');
 const clock = document.getElementById('clock');
-const detailsPanel = document.getElementById('detailsPanel');
+const windows = [...document.querySelectorAll('.xp-window')];
+const securityBalloon = document.querySelector('.security-balloon');
+let topZ = 30;
 
-const sections = {
-  about: {
-    title: 'About Me',
-    text: 'Jsem Marty. Stavim weby, male produkty, automatizace a retro digitalni veci s vlastnim charakterem.'
-  },
-  computer: {
-    title: 'My Computer',
-    text: 'Cesta: C:\\Documents and Settings\\Marty\\Portfolio. Tady je rozcestnik na projekty, odkazy a kontakt.'
-  },
-  bin: {
-    title: 'Recycling Bin',
-    text: 'Tady konci nudne sablony, genericke landing pages a veci bez nazoru.'
-  },
-  resume: {
-    title: 'My Resume',
-    text: 'Profil je pripraveny na doplneni realneho CV, klientu, stacku a rychlych odkazu.'
-  },
-  work: {
-    title: 'My Work',
-    text: 'AI Studio, webove nastroje, automatizace, obsahove systemy a hrave mikrostranky.'
-  },
-  hobbies: {
-    title: 'My Hobbies',
-    text: 'Retro UI, fotografie, experimenty, hry s webovou grafikou a veci, ktere pusobi jako z jine doby.'
-  }
+const titles = {
+  welcome: 'Welcome',
+  computer: 'My Computer',
+  about: 'About Me',
+  projects: 'My Projects',
+  notepad: 'Notes.txt',
+  paint: 'Gallery',
+  trash: 'Recycle Bin'
 };
 
-function updateClock() {
-  const now = new Date();
-  clock.textContent = now.toLocaleTimeString('en-US', {
+function setClock() {
+  clock.textContent = new Date().toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit'
   });
 }
 
-function showSection(key) {
-  const section = sections[key] || sections.about;
-  detailsPanel.innerHTML = `
-    <div class="details-title"><span class="tiny-icon info"></span><strong>${section.title}</strong></div>
-    <p>${section.text}</p>
-  `;
+function renderTasks(activeId) {
+  taskbar.innerHTML = '';
+  windows
+    .filter((windowEl) => windowEl.classList.contains('open'))
+    .forEach((windowEl) => {
+      const id = windowEl.dataset.window;
+      const button = document.createElement('button');
+      button.className = `task-button${id === activeId ? ' active' : ''}`;
+      button.innerHTML = `<i class="mini folder"></i>${titles[id] || id}`;
+      button.addEventListener('click', () => {
+        if (windowEl.classList.contains('active')) {
+          windowEl.classList.remove('open', 'active');
+        } else {
+          openWindow(id);
+        }
+        renderTasks(id);
+      });
+      taskbar.appendChild(button);
+    });
+}
+
+function focusWindow(windowEl) {
+  topZ += 1;
+  windows.forEach((item) => item.classList.remove('active'));
+  windowEl.classList.add('active');
+  windowEl.style.zIndex = topZ;
+  renderTasks(windowEl.dataset.window);
+}
+
+function openWindow(id) {
+  const windowEl = document.querySelector(`[data-window="${id}"]`);
+  if (!windowEl) return;
+  windowEl.classList.add('open');
+  focusWindow(windowEl);
   startMenu.classList.remove('open');
 }
 
-document.querySelectorAll('[data-section]').forEach((item) => {
-  item.addEventListener('click', () => showSection(item.dataset.section));
+function closeWindow(id) {
+  const windowEl = document.querySelector(`[data-window="${id}"]`);
+  if (!windowEl) return;
+  windowEl.classList.remove('open', 'active');
+  const next = windows.find((item) => item.classList.contains('open'));
+  if (next) focusWindow(next);
+  renderTasks(next?.dataset.window || '');
+}
+
+function makeDraggable(windowEl) {
+  const bar = windowEl.querySelector('.titlebar');
+  let startX = 0;
+  let startY = 0;
+  let originX = 0;
+  let originY = 0;
+  let dragging = false;
+
+  bar.addEventListener('pointerdown', (event) => {
+    if (window.matchMedia('(max-width: 780px)').matches) return;
+    dragging = true;
+    focusWindow(windowEl);
+    startX = event.clientX;
+    startY = event.clientY;
+    const rect = windowEl.getBoundingClientRect();
+    originX = rect.left;
+    originY = rect.top;
+    bar.setPointerCapture(event.pointerId);
+  });
+
+  bar.addEventListener('pointermove', (event) => {
+    if (!dragging) return;
+    const nextX = Math.max(8, Math.min(window.innerWidth - windowEl.offsetWidth - 8, originX + event.clientX - startX));
+    const nextY = Math.max(8, Math.min(window.innerHeight - windowEl.offsetHeight - 48, originY + event.clientY - startY));
+    windowEl.style.left = `${nextX}px`;
+    windowEl.style.top = `${nextY}px`;
+  });
+
+  bar.addEventListener('pointerup', (event) => {
+    dragging = false;
+    bar.releasePointerCapture(event.pointerId);
+  });
+}
+
+document.querySelectorAll('[data-open]').forEach((control) => {
+  control.addEventListener('click', () => openWindow(control.dataset.open));
+});
+
+document.querySelectorAll('[data-close]').forEach((control) => {
+  control.addEventListener('click', (event) => {
+    event.stopPropagation();
+    closeWindow(control.dataset.close);
+  });
+});
+
+document.querySelectorAll('[data-minimize]').forEach((control) => {
+  control.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const windowEl = document.querySelector(`[data-window="${control.dataset.minimize}"]`);
+    windowEl?.classList.remove('open', 'active');
+    renderTasks('');
+  });
+});
+
+windows.forEach((windowEl) => {
+  windowEl.addEventListener('pointerdown', () => focusWindow(windowEl));
+  makeDraggable(windowEl);
 });
 
 startButton.addEventListener('click', (event) => {
@@ -63,10 +140,13 @@ document.addEventListener('click', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') {
-    startMenu.classList.remove('open');
-  }
+  if (event.key === 'Escape') startMenu.classList.remove('open');
 });
 
-updateClock();
-setInterval(updateClock, 15000);
+securityBalloon?.querySelector('button')?.addEventListener('click', () => {
+  securityBalloon.remove();
+});
+
+setClock();
+setInterval(setClock, 15000);
+renderTasks('computer');

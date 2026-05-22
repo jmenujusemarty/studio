@@ -3,88 +3,199 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Marty XP - Home Page</title>
-  <meta name="description" content="Osobni web ve stylu Windows XP desktopu.">
+  <title>Marty XP</title>
+  <meta name="description" content="Osobni web jako mini Windows XP desktop.">
   <link rel="stylesheet" href="/winxp-personal/styles.css">
 </head>
 <body>
-  <main class="xp-desktop">
-    <section class="desktop-icons" aria-label="Desktop shortcuts">
-      <button class="desktop-shortcut" data-section="computer"><span class="icon computer"></span><span>My Computer</span></button>
-      <button class="desktop-shortcut" data-section="bin"><span class="icon bin"></span><span>Recycling Bin</span></button>
-      <button class="desktop-shortcut" data-section="resume"><span class="icon doc"></span><span>My Resume</span></button>
-      <a class="desktop-shortcut" href="https://www.linkedin.com/" target="_blank" rel="noreferrer"><span class="icon linkedin"></span><span>My LinkedIn</span></a>
-      <a class="desktop-shortcut" href="https://github.com/" target="_blank" rel="noreferrer"><span class="icon github"></span><span>My Github</span></a>
-      <button class="desktop-shortcut" data-section="work"><span class="icon briefcase"></span><span>My Work</span></button>
-      <button class="desktop-shortcut" data-section="hobbies"><span class="icon camera"></span><span>My Hobbies</span></button>
+  <div class="boot" id="boot" aria-hidden="true">
+    <div class="boot-logo">
+      <div class="flag"><span></span><span></span><span></span><span></span></div>
+      <strong>Windows XP</strong>
+      <em>Professional</em>
+    </div>
+    <div class="boot-bar"><i></i></div>
+  </div>
+
+  <main class="desktop" id="desktop">
+    <div class="desktop-shine"></div>
+
+    <section class="icons" aria-label="Desktop">
+      <button class="desktop-icon" data-open="computer"><span class="ico computer"></span><span>My Computer</span></button>
+      <button class="desktop-icon" data-open="about"><span class="ico user"></span><span>About Me</span></button>
+      <button class="desktop-icon" data-open="projects"><span class="ico folder"></span><span>My Projects</span></button>
+      <button class="desktop-icon" data-open="notepad"><span class="ico notepad"></span><span>Notes.txt</span></button>
+      <button class="desktop-icon" data-open="paint"><span class="ico paint"></span><span>Gallery</span></button>
+      <a class="desktop-icon" href="https://github.com/" target="_blank" rel="noreferrer"><span class="ico globe"></span><span>GitHub</span></a>
+      <button class="desktop-icon" data-open="trash"><span class="ico trash"></span><span>Recycle Bin</span></button>
     </section>
 
-    <section class="explorer-window" aria-label="Quick Start Guide">
-      <header class="window-title">
-        <div class="title-name"><span class="tiny-icon folder"></span>Quick Start Guide</div>
-        <div class="window-buttons" aria-hidden="true"><button>_</button><button>[]</button><button>x</button></div>
+    <section class="xp-window welcome" id="win-welcome" data-window="welcome" style="--x: 260px; --y: 72px; --w: 620px;">
+      <header class="titlebar">
+        <span><i class="mini folder"></i>Welcome</span>
+        <div class="win-actions"><button data-minimize="welcome">_</button><button>[]</button><button data-close="welcome">x</button></div>
       </header>
-
-      <nav class="window-menu" aria-label="Explorer menu">
-        <button>File</button>
-        <button>Edit</button>
-        <button>View</button>
-        <button>Favourites</button>
-        <button>Tools</button>
-        <button>Help</button>
-      </nav>
-
       <div class="toolbar">
-        <button class="tool-button"><span class="tool-icon back"></span>Back</button>
-        <span class="separator"></span>
-        <button class="tool-button disabled"><span class="tool-icon forward"></span></button>
-        <button class="tool-button"><span class="tool-icon folder"></span></button>
-        <button class="tool-button"><span class="tool-icon search"></span>Search</button>
-        <button class="tool-button"><span class="tool-icon folders"></span>Folders</button>
-        <button class="tool-button"><span class="tool-icon view"></span></button>
+        <button><i class="tool back"></i>Back</button>
+        <button><i class="tool forward"></i></button>
+        <button><i class="tool search"></i>Search</button>
+        <button><i class="tool folders"></i>Folders</button>
       </div>
-
-      <form class="address-bar">
-        <label for="address">Address</label>
-        <div class="address-input"><span class="tiny-icon folder"></span><input id="address" value="Quick Start Guide" readonly></div>
-        <button type="button"><span class="go-icon"></span>Go</button>
-      </form>
-
-      <div class="explorer-body">
-        <section class="guide-copy">
-          <h1>Welcome To Marty's Personal Website</h1>
-          <p>Learn more about me by clicking any of the icons below to get started!</p>
-        </section>
-
-        <section class="shortcut-grid" aria-label="Quick links">
-          <button class="folder-shortcut" data-section="about"><span class="large-icon person"></span><span>About Me</span></button>
-          <a class="folder-shortcut" href="https://github.com/" target="_blank" rel="noreferrer"><span class="large-icon github"></span><span>My GitHub Profile</span></a>
-          <a class="folder-shortcut" href="https://www.linkedin.com/" target="_blank" rel="noreferrer"><span class="large-icon linkedin"></span><span>My Linkedin</span></a>
-          <button class="folder-shortcut" data-section="resume"><span class="large-icon resume"></span><span>My Resume</span></button>
-          <button class="folder-shortcut" data-section="work"><span class="large-icon work"></span><span>My Work</span></button>
-          <a class="folder-shortcut" href="mailto:hello@example.com"><span class="large-icon email"></span><span>Send Me An Email</span></a>
-          <button class="folder-shortcut" data-section="hobbies"><span class="large-icon photos"></span><span>My Photography Collection</span></button>
-        </section>
-
-        <section class="details-panel" id="detailsPanel">
-          <div class="details-title"><span class="tiny-icon info"></span><strong>Quick Start Guide</strong></div>
-          <p>Jsem Marty. Stavim weby, male produkty, automatizace a retro digitalni veci s vlastnim charakterem.</p>
+      <div class="address"><span>Address</span><div><i class="mini folder"></i>C:\Marty\Home</div><button>Go</button></div>
+      <div class="content welcome-content">
+        <aside class="tasks">
+          <h2>System Tasks</h2>
+          <button data-open="about">View profile</button>
+          <button data-open="projects">Browse projects</button>
+          <button data-open="notepad">Open notes</button>
+          <h2>Other Places</h2>
+          <button data-open="computer">My Computer</button>
+          <button data-open="paint">Gallery</button>
+        </aside>
+        <section class="welcome-main">
+          <h1>Marty XP</h1>
+          <p>Osobni web jako mala XP plocha. Oteviraj ikony, zkus Start menu a projdi si projekty jako slozky v pocitaci.</p>
+          <div class="quick-grid">
+            <button data-open="about"><span class="large user"></span>About Me</button>
+            <button data-open="projects"><span class="large folder"></span>My Projects</button>
+            <button data-open="notepad"><span class="large notepad"></span>Notes.txt</button>
+            <a href="mailto:hello@example.com"><span class="large mail"></span>Email</a>
+          </div>
         </section>
       </div>
     </section>
 
-    <aside class="start-menu" id="startMenu" aria-hidden="true">
-      <div class="start-user"><span>M</span><strong>Marty</strong></div>
-      <button data-section="about">About Me</button>
-      <button data-section="work">My Work</button>
-      <button data-section="hobbies">My Hobbies</button>
-      <a href="mailto:hello@example.com">Contact</a>
+    <section class="xp-window open active computer-window" id="win-computer" data-window="computer" style="--x: 152px; --y: 58px; --w: 780px;">
+      <header class="titlebar"><span><i class="mini computer"></i>My Computer</span><div class="win-actions"><button data-minimize="computer">_</button><button>[]</button><button data-close="computer">x</button></div></header>
+      <div class="menu"><button>File</button><button>Edit</button><button>View</button><button>Favorites</button><button>Tools</button><button>Help</button></div>
+      <div class="toolbar">
+        <button><i class="tool back"></i>Back</button>
+        <button><i class="tool forward"></i></button>
+        <button><i class="tool up"></i></button>
+        <button><i class="tool search"></i>Search</button>
+        <button><i class="tool folders"></i>Folders</button>
+        <button><i class="tool view"></i></button>
+      </div>
+      <div class="address"><span>Address</span><div><i class="mini computer"></i>My Computer</div><button class="go">Go</button></div>
+      <div class="content file-view explorer-split">
+        <aside class="xp-sidebar">
+          <section>
+            <h2>System Tasks</h2>
+            <button data-open="about"><i class="side-icon info"></i>View system information</button>
+            <button data-open="projects"><i class="side-icon add"></i>Add or remove programs</button>
+            <button data-open="paint"><i class="side-icon brush"></i>Change a setting</button>
+          </section>
+          <section>
+            <h2>Other Places</h2>
+            <button data-open="welcome"><i class="side-icon folder"></i>My Documents</button>
+            <button data-open="projects"><i class="side-icon folder"></i>Shared Documents</button>
+            <button data-open="trash"><i class="side-icon trash"></i>Recycle Bin</button>
+          </section>
+          <section>
+            <h2>Details</h2>
+            <p>My Computer<br>System Folder</p>
+          </section>
+        </aside>
+        <section class="computer-files">
+          <h2>Files Stored on This Computer</h2>
+          <div class="folder-list">
+            <button data-open="projects"><span class="folder-big"></span><strong>Shared Documents</strong></button>
+            <button data-open="about"><span class="folder-big user-folder"></span><strong>User's Documents</strong></button>
+          </div>
+          <h2>Hard Disk Drives</h2>
+          <div class="drive-grid">
+            <button data-open="about"><span class="drive c"></span><strong>Local Disk (C:)</strong><small>Profile and contact</small></button>
+            <button data-open="projects"><span class="drive d"></span><strong>Projects (D:)</strong><small>Webs and tools</small></button>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="xp-window" id="win-about" data-window="about" style="--x: 420px; --y: 128px; --w: 440px;">
+      <header class="titlebar"><span><i class="mini user"></i>About Me</span><div class="win-actions"><button data-minimize="about">_</button><button>[]</button><button data-close="about">x</button></div></header>
+      <div class="content profile">
+        <div class="avatar">M</div>
+        <div>
+          <h2>Marty</h2>
+          <p>Builder webu, automatizaci a digitalnich produktu. Mam rad veci, ktere maji silny vizualni nazor a jsou prakticky pouzitelne.</p>
+          <dl><dt>Status</dt><dd>Online</dd><dt>Focus</dt><dd>Web, AI, produkty, retro UI</dd></dl>
+        </div>
+      </div>
+    </section>
+
+    <section class="xp-window" id="win-projects" data-window="projects" style="--x: 345px; --y: 188px; --w: 590px;">
+      <header class="titlebar"><span><i class="mini folder"></i>My Projects</span><div class="win-actions"><button data-minimize="projects">_</button><button>[]</button><button data-close="projects">x</button></div></header>
+      <div class="content project-list">
+        <article><span class="file app"></span><div><h2>AI Studio</h2><p>Obsahove workflow, analyza, fronta a automatizace.</p></div></article>
+        <article><span class="file web"></span><div><h2>Retro Sites</h2><p>Mikrostranky inspirovane desktopovymi systemy a hrami.</p></div></article>
+        <article><span class="file ops"></span><div><h2>Automation Tools</h2><p>Male provozni nastroje, ktere setri klikani a rutinu.</p></div></article>
+      </div>
+    </section>
+
+    <section class="xp-window" id="win-notepad" data-window="notepad" style="--x: 510px; --y: 88px; --w: 420px;">
+      <header class="titlebar"><span><i class="mini notepad"></i>Notes.txt - Notepad</span><div class="win-actions"><button data-minimize="notepad">_</button><button>[]</button><button data-close="notepad">x</button></div></header>
+      <div class="menu"><button>File</button><button>Edit</button><button>Format</button><button>View</button><button>Help</button></div>
+      <textarea class="notepad" spellcheck="false">Marty XP
+
+- weby s charakterem
+- produktove prototypy
+- automatizace
+- retro vizualni systemy
+
+Kontakt: hello@example.com</textarea>
+    </section>
+
+    <section class="xp-window" id="win-paint" data-window="paint" style="--x: 235px; --y: 220px; --w: 480px;">
+      <header class="titlebar"><span><i class="mini paint"></i>Gallery - Paint</span><div class="win-actions"><button data-minimize="paint">_</button><button>[]</button><button data-close="paint">x</button></div></header>
+      <div class="content paint-box">
+        <div class="palette"><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="canvas-art"><strong>XP</strong><em>retro portfolio mode</em></div>
+      </div>
+    </section>
+
+    <section class="xp-window small" id="win-trash" data-window="trash" style="--x: 610px; --y: 310px; --w: 330px;">
+      <header class="titlebar"><span><i class="mini trash"></i>Recycle Bin</span><div class="win-actions"><button data-minimize="trash">_</button><button>[]</button><button data-close="trash">x</button></div></header>
+      <div class="content"><p>Recycle Bin is empty. Nic nudneho tu nezbylo.</p></div>
+    </section>
+
+    <aside class="start-menu open" id="startMenu" aria-hidden="false">
+      <div class="start-head"><div class="start-avatar xp-photo">M</div><strong>User</strong></div>
+      <div class="start-body">
+        <div class="start-left">
+          <a href="#" data-open="welcome"><span class="large ie"></span><strong>Internet</strong><small>Internet Explorer</small></a>
+          <a href="mailto:hello@example.com"><span class="large mail"></span><strong>E-mail</strong><small>Outlook Express</small></a>
+          <button data-open="projects"><span class="large mines"></span>Minesweeper</button>
+          <button data-open="welcome"><span class="large folder"></span>Welcome</button>
+          <button data-open="notepad"><span class="large notepad"></span>Notes</button>
+          <button data-open="paint"><span class="large winamp"></span>Winamp</button>
+          <button data-open="paint"><span class="large paint"></span>Gallery</button>
+          <button data-open="welcome"><span class="large media"></span>Windows Media Player</button>
+        </div>
+        <div class="start-right">
+          <button data-open="welcome"><span class="small-start folder"></span>My Documents</button>
+          <button data-open="projects"><span class="small-start doc"></span>My Recent Documents</button>
+          <button data-open="paint"><span class="small-start pic"></span>My Pictures</button>
+          <button data-open="paint"><span class="small-start music"></span>My Music</button>
+          <button data-open="computer"><span class="small-start computer"></span>My Computer</button>
+          <button data-open="about"><span class="small-start control"></span>Control Panel</button>
+          <a href="https://github.com/" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="mailto:hello@example.com">Email</a>
+        </div>
+      </div>
+      <div class="all-programs">All Programs <span></span></div>
+    </aside>
+
+    <aside class="security-balloon">
+      <button aria-label="Close warning">x</button>
+      <strong>Your computer might be at risk</strong>
+      <p>Antivirus software might not be installed.</p>
+      <p>Click this balloon to fix this problem.</p>
     </aside>
 
     <footer class="taskbar">
-      <button class="start-button" id="startButton"><span class="windows-mark"></span>start</button>
-      <button class="task-item active"><span class="tiny-icon folder"></span>Quick Start Guide</button>
-      <div class="tray"><span class="tray-icon one"></span><span class="tray-icon two"></span><time id="clock">--:--</time></div>
+      <button class="start" id="startButton"><span></span>start</button>
+      <nav class="tasks" id="tasks" aria-label="Open windows"></nav>
+      <div class="tray"><span class="tray-dot"></span><span class="tray-speaker"></span><time id="clock">--:--</time></div>
     </footer>
   </main>
 
