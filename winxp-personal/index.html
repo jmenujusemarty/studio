@@ -1,204 +1,192 @@
 <!doctype html>
-<html lang="cs">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Marty XP</title>
-  <meta name="description" content="Osobni web jako mini Windows XP desktop.">
+  <meta name="description" content="Personal Windows XP style website.">
   <link rel="stylesheet" href="/winxp-personal/styles.css">
 </head>
 <body>
-  <div class="boot" id="boot" aria-hidden="true">
-    <div class="boot-logo">
-      <div class="flag"><span></span><span></span><span></span><span></span></div>
-      <strong>Windows XP</strong>
-      <em>Professional</em>
-    </div>
-    <div class="boot-bar"><i></i></div>
-  </div>
-
-  <main class="desktop" id="desktop">
-    <div class="desktop-shine"></div>
-
-    <section class="icons" aria-label="Desktop">
-      <button class="desktop-icon" data-open="computer"><span class="ico computer"></span><span>My Computer</span></button>
-      <button class="desktop-icon" data-open="about"><span class="ico user"></span><span>About Me</span></button>
-      <button class="desktop-icon" data-open="projects"><span class="ico folder"></span><span>My Projects</span></button>
-      <button class="desktop-icon" data-open="notepad"><span class="ico notepad"></span><span>Notes.txt</span></button>
-      <button class="desktop-icon" data-open="paint"><span class="ico paint"></span><span>Gallery</span></button>
-      <a class="desktop-icon" href="https://github.com/" target="_blank" rel="noreferrer"><span class="ico globe"></span><span>GitHub</span></a>
-      <button class="desktop-icon" data-open="trash"><span class="ico trash"></span><span>Recycle Bin</span></button>
+  <main class="xp-shell" id="shell">
+    <section class="desktop-icons" aria-label="Desktop shortcuts">
+      <button class="desktop-icon" data-open="computer"><img src="/winxp-personal/assets/mycomputer.png" alt=""><span>My Computer</span></button>
+      <button class="desktop-icon" data-open="bin"><img src="/winxp-personal/assets/recycling_bin.png" alt=""><span>Recycling Bin</span></button>
+      <a class="desktop-icon" href="/winxp-personal/assets/Resume.pdf" target="_blank"><img src="/winxp-personal/assets/pdf.png" alt=""><span>My Resume</span></a>
+      <a class="desktop-icon" href="https://www.linkedin.com/" target="_blank" rel="noreferrer"><img src="/winxp-personal/assets/linkedin.png" alt=""><span>My LinkedIn</span></a>
+      <a class="desktop-icon" href="https://github.com/" target="_blank" rel="noreferrer"><img src="/winxp-personal/assets/github.png" alt=""><span>My Github</span></a>
+      <button class="desktop-icon" data-open="work"><img src="/winxp-personal/assets/cmd.png" alt=""><span>My Work</span></button>
+      <button class="desktop-icon" data-open="gallery"><img src="/winxp-personal/assets/solitaire.png" alt=""><span>My Hobbies</span></button>
     </section>
 
-    <section class="xp-window welcome" id="win-welcome" data-window="welcome" style="--x: 260px; --y: 72px; --w: 620px;">
+    <section class="window active open" data-window="computer" style="--x: 164px; --y: 54px; --w: 780px; --h: 560px;">
       <header class="titlebar">
-        <span><i class="mini folder"></i>Welcome</span>
-        <div class="win-actions"><button data-minimize="welcome">_</button><button>[]</button><button data-close="welcome">x</button></div>
+        <div class="title"><img src="/winxp-personal/assets/mycomputer.png" alt="">My Computer</div>
+        <div class="title-controls">
+          <button class="min" data-minimize="computer" aria-label="Minimize"></button>
+          <button class="max" data-maximize="computer" aria-label="Maximize"></button>
+          <button class="close" data-close="computer" aria-label="Close"></button>
+        </div>
       </header>
-      <div class="toolbar">
-        <button><i class="tool back"></i>Back</button>
-        <button><i class="tool forward"></i></button>
-        <button><i class="tool search"></i>Search</button>
-        <button><i class="tool folders"></i>Folders</button>
+      <div class="window-border">
+        <nav class="menubar"><button>File</button><button>Edit</button><button>View</button><button>Favorites</button><button>Tools</button><button>Help</button></nav>
+        <div class="toolbar">
+          <button><img src="/winxp-personal/assets/toolbar/back.png" alt="">Back</button>
+          <button><img src="/winxp-personal/assets/toolbar/forward.png" alt=""></button>
+          <button><img src="/winxp-personal/assets/toolbar/row-1-column-11.png" alt=""></button>
+          <i></i>
+          <button><img src="/winxp-personal/assets/toolbar/search.png" alt="">Search</button>
+          <button><img src="/winxp-personal/assets/toolbar/folders.png" alt="">Folders</button>
+          <i></i>
+          <button><img src="/winxp-personal/assets/toolbar/thumbnail.png" alt=""></button>
+        </div>
+        <div class="addressbar"><span>Address</span><div><img src="/winxp-personal/assets/mycomputer.png" alt="">My Computer</div><button><img src="/winxp-personal/assets/toolbar/go.png" alt="">Go</button></div>
+        <div class="explorer">
+          <aside class="task-pane">
+            <div class="pane-group">
+              <h2>System Tasks</h2>
+              <button data-open="about"><img src="/winxp-personal/assets/hardware.png" alt="">View system information</button>
+              <button data-open="work"><img src="/winxp-personal/assets/defaultprog.png" alt="">Add or remove programs</button>
+              <button data-open="gallery"><img src="/winxp-personal/assets/clipboard.png" alt="">Change a setting</button>
+            </div>
+            <div class="pane-group">
+              <h2>Other Places</h2>
+              <button data-open="welcome"><img src="/winxp-personal/assets/folder_plain.png" alt="">My Documents</button>
+              <button data-open="gallery"><img src="/winxp-personal/assets/folder_image.png" alt="">My Pictures</button>
+              <button data-open="bin"><img src="/winxp-personal/assets/recycling_bin.png" alt="">Recycle Bin</button>
+            </div>
+            <div class="pane-group">
+              <h2>Details</h2>
+              <p><strong>My Computer</strong><br>System Folder</p>
+            </div>
+          </aside>
+          <section class="file-panel">
+            <h1>Files Stored on This Computer</h1>
+            <div class="folder-list">
+              <button data-open="welcome"><img src="/winxp-personal/assets/folder.png" alt=""><span>Shared Documents</span></button>
+              <button data-open="about"><img src="/winxp-personal/assets/folder_plain.png" alt=""><span>User's Documents</span></button>
+            </div>
+            <h1>Hard Disk Drives</h1>
+            <div class="folder-list">
+              <button data-open="about"><img src="/winxp-personal/assets/removabledevice.png" alt=""><span>Local Disk (C:)</span></button>
+              <button data-open="work"><img src="/winxp-personal/assets/cmd.png" alt=""><span>Projects (D:)</span></button>
+            </div>
+          </section>
+        </div>
       </div>
-      <div class="address"><span>Address</span><div><i class="mini folder"></i>C:\Marty\Home</div><button>Go</button></div>
-      <div class="content welcome-content">
-        <aside class="tasks">
-          <h2>System Tasks</h2>
-          <button data-open="about">View profile</button>
-          <button data-open="projects">Browse projects</button>
-          <button data-open="notepad">Open notes</button>
-          <h2>Other Places</h2>
-          <button data-open="computer">My Computer</button>
-          <button data-open="paint">Gallery</button>
-        </aside>
-        <section class="welcome-main">
-          <h1>Marty XP</h1>
-          <p>Osobni web jako mala XP plocha. Oteviraj ikony, zkus Start menu a projdi si projekty jako slozky v pocitaci.</p>
-          <div class="quick-grid">
-            <button data-open="about"><span class="large user"></span>About Me</button>
-            <button data-open="projects"><span class="large folder"></span>My Projects</button>
-            <button data-open="notepad"><span class="large notepad"></span>Notes.txt</button>
-            <a href="mailto:hello@example.com"><span class="large mail"></span>Email</a>
+    </section>
+
+    <section class="window" data-window="welcome" style="--x: 245px; --y: 90px; --w: 760px; --h: 520px;">
+      <header class="titlebar"><div class="title"><img src="/winxp-personal/assets/help.png" alt="">Welcome To My Website - Quick Start Guide</div><div class="title-controls"><button class="min" data-minimize="welcome"></button><button class="max" data-maximize="welcome"></button><button class="close" data-close="welcome"></button></div></header>
+      <div class="window-border">
+        <div class="toolbar"><button><img src="/winxp-personal/assets/toolbar/back.png" alt="">Back</button><button><img src="/winxp-personal/assets/toolbar/search.png" alt="">Search</button><button><img src="/winxp-personal/assets/toolbar/folders.png" alt="">Folders</button></div>
+        <div class="addressbar"><span>Address</span><div><img src="/winxp-personal/assets/help.png" alt="">Quick Start Guide</div><button><img src="/winxp-personal/assets/toolbar/go.png" alt="">Go</button></div>
+        <div class="welcome-body">
+          <h1>Welcome To Marty's Personal Website</h1>
+          <p>Learn more about me by clicking any of the icons below to get started!</p>
+          <div class="welcome-grid">
+            <button data-open="about"><img src="/winxp-personal/assets/users.png" alt="">About Me</button>
+            <a href="https://github.com/" target="_blank" rel="noreferrer"><img src="/winxp-personal/assets/github.png" alt="">My GitHub Profile</a>
+            <a href="https://www.linkedin.com/" target="_blank" rel="noreferrer"><img src="/winxp-personal/assets/linkedin.png" alt="">My Linkedin</a>
+            <a href="/winxp-personal/assets/Resume.pdf" target="_blank"><img src="/winxp-personal/assets/pdf.png" alt="">My Resume</a>
+            <button data-open="work"><img src="/winxp-personal/assets/cmd.png" alt="">My Work</button>
+            <button data-open="outlook"><img src="/winxp-personal/assets/outlook_large.png" alt="">Send Me An Email</button>
+            <button data-open="gallery"><img src="/winxp-personal/assets/folder_image.png" alt="">My Photography Collection</button>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="window dialog" data-window="about" style="--x: 435px; --y: 130px; --w: 460px; --h: 300px;">
+      <header class="titlebar"><div class="title"><img src="/winxp-personal/assets/users.png" alt="">System Information</div><div class="title-controls"><button class="min" data-minimize="about"></button><button class="max" data-maximize="about"></button><button class="close" data-close="about"></button></div></header>
+      <div class="window-border about-body">
+        <img class="portrait" src="/winxp-personal/assets/userprofile2.jpg" alt="">
+        <div><h1>Marty</h1><p>Builder webu, automatizaci a digitalnich produktu. Mam rad veci, ktere maji silny vizualni nazor a jsou prakticky pouzitelne.</p><p><strong>Status:</strong> online<br><strong>Focus:</strong> web, AI, produkty, retro UI</p></div>
+      </div>
+    </section>
+
+    <section class="window" data-window="work" style="--x: 330px; --y: 122px; --w: 760px; --h: 520px;">
+      <header class="titlebar"><div class="title"><img src="/winxp-personal/assets/cmd.png" alt="">My Work</div><div class="title-controls"><button class="min" data-minimize="work"></button><button class="max" data-maximize="work"></button><button class="close" data-close="work"></button></div></header>
+      <div class="window-border work-body">
+        <aside class="work-tree"><button class="selected"><img src="/winxp-personal/assets/workaccordion/file.png" alt="">Projects</button><button><img src="/winxp-personal/assets/workaccordion/pictureicon.png" alt="">Screenshots</button><button><img src="/winxp-personal/assets/workaccordion/emptyfile.png" alt="">Archive</button></aside>
+        <section class="work-list">
+          <article><img src="/winxp-personal/assets/work/MS.png" alt=""><div><h2>AI Studio</h2><p>Obsahove workflow, analyza, fronta a automatizace.</p></div></article>
+          <article><img src="/winxp-personal/assets/work/MS2.png" alt=""><div><h2>Retro Sites</h2><p>Mikrostranky inspirovane desktopovymi systemy a hrami.</p></div></article>
+          <article><img src="/winxp-personal/assets/work/lul.png" alt=""><div><h2>Automation Tools</h2><p>Male provozni nastroje, ktere setri klikani a rutinu.</p></div></article>
         </section>
       </div>
     </section>
 
-    <section class="xp-window open active computer-window" id="win-computer" data-window="computer" style="--x: 152px; --y: 58px; --w: 780px;">
-      <header class="titlebar"><span><i class="mini computer"></i>My Computer</span><div class="win-actions"><button data-minimize="computer">_</button><button>[]</button><button data-close="computer">x</button></div></header>
-      <div class="menu"><button>File</button><button>Edit</button><button>View</button><button>Favorites</button><button>Tools</button><button>Help</button></div>
-      <div class="toolbar">
-        <button><i class="tool back"></i>Back</button>
-        <button><i class="tool forward"></i></button>
-        <button><i class="tool up"></i></button>
-        <button><i class="tool search"></i>Search</button>
-        <button><i class="tool folders"></i>Folders</button>
-        <button><i class="tool view"></i></button>
-      </div>
-      <div class="address"><span>Address</span><div><i class="mini computer"></i>My Computer</div><button class="go">Go</button></div>
-      <div class="content file-view explorer-split">
-        <aside class="xp-sidebar">
-          <section>
-            <h2>System Tasks</h2>
-            <button data-open="about"><i class="side-icon info"></i>View system information</button>
-            <button data-open="projects"><i class="side-icon add"></i>Add or remove programs</button>
-            <button data-open="paint"><i class="side-icon brush"></i>Change a setting</button>
-          </section>
-          <section>
-            <h2>Other Places</h2>
-            <button data-open="welcome"><i class="side-icon folder"></i>My Documents</button>
-            <button data-open="projects"><i class="side-icon folder"></i>Shared Documents</button>
-            <button data-open="trash"><i class="side-icon trash"></i>Recycle Bin</button>
-          </section>
-          <section>
-            <h2>Details</h2>
-            <p>My Computer<br>System Folder</p>
-          </section>
-        </aside>
-        <section class="computer-files">
-          <h2>Files Stored on This Computer</h2>
-          <div class="folder-list">
-            <button data-open="projects"><span class="folder-big"></span><strong>Shared Documents</strong></button>
-            <button data-open="about"><span class="folder-big user-folder"></span><strong>User's Documents</strong></button>
-          </div>
-          <h2>Hard Disk Drives</h2>
-          <div class="drive-grid">
-            <button data-open="about"><span class="drive c"></span><strong>Local Disk (C:)</strong><small>Profile and contact</small></button>
-            <button data-open="projects"><span class="drive d"></span><strong>Projects (D:)</strong><small>Webs and tools</small></button>
-          </div>
-        </section>
+    <section class="window" data-window="gallery" style="--x: 285px; --y: 145px; --w: 680px; --h: 500px;">
+      <header class="titlebar"><div class="title"><img src="/winxp-personal/assets/folder_image.png" alt="">My Photography Collection</div><div class="title-controls"><button class="min" data-minimize="gallery"></button><button class="max" data-maximize="gallery"></button><button class="close" data-close="gallery"></button></div></header>
+      <div class="window-border gallery-body">
+        <button class="slide-btn" data-slide="-1"><img src="/winxp-personal/assets/slider_left.png" alt=""></button>
+        <img class="gallery-img" id="galleryImage" src="/winxp-personal/assets/gallery/0.webp" alt="">
+        <button class="slide-btn" data-slide="1"><img src="/winxp-personal/assets/slider_right.png" alt=""></button>
       </div>
     </section>
 
-    <section class="xp-window" id="win-about" data-window="about" style="--x: 420px; --y: 128px; --w: 440px;">
-      <header class="titlebar"><span><i class="mini user"></i>About Me</span><div class="win-actions"><button data-minimize="about">_</button><button>[]</button><button data-close="about">x</button></div></header>
-      <div class="content profile">
-        <div class="avatar">M</div>
-        <div>
-          <h2>Marty</h2>
-          <p>Builder webu, automatizaci a digitalnich produktu. Mam rad veci, ktere maji silny vizualni nazor a jsou prakticky pouzitelne.</p>
-          <dl><dt>Status</dt><dd>Online</dd><dt>Focus</dt><dd>Web, AI, produkty, retro UI</dd></dl>
+    <section class="window dialog" data-window="outlook" style="--x: 390px; --y: 150px; --w: 500px; --h: 360px;">
+      <header class="titlebar"><div class="title"><img src="/winxp-personal/assets/outlook.png" alt="">Outlook Express</div><div class="title-controls"><button class="min" data-minimize="outlook"></button><button class="max" data-maximize="outlook"></button><button class="close" data-close="outlook"></button></div></header>
+      <div class="window-border outlook-body">
+        <label>Your e-mail</label><input value="hello@example.com" readonly>
+        <label>Message</label><textarea spellcheck="false">Ahoj Marty, mam napad na projekt...</textarea>
+        <button class="xp-button">Send</button>
+      </div>
+    </section>
+
+    <section class="window dialog" data-window="bin" style="--x: 575px; --y: 245px; --w: 330px; --h: 190px;">
+      <header class="titlebar"><div class="title"><img src="/winxp-personal/assets/recycling_bin.png" alt="">Recycle Bin</div><div class="title-controls"><button class="min" data-minimize="bin"></button><button class="max" data-maximize="bin"></button><button class="close" data-close="bin"></button></div></header>
+      <div class="window-border msg-body"><img src="/winxp-personal/assets/dialog/info.png" alt=""><p>Recycle Bin is empty. Nic nudneho tu nezbylo.</p><button class="xp-button" data-close="bin">OK</button></div>
+    </section>
+
+    <aside class="start-menu open" id="startMenu">
+      <div class="menu-top"><img src="/winxp-personal/assets/userprofile.jpg" alt=""><strong>Marty's PC</strong></div>
+      <div class="orange-line"></div>
+      <div class="menu-body">
+        <div class="menu-left">
+          <a href="#" data-open="welcome"><img src="/winxp-personal/assets/ie.png" alt=""><span><strong>Internet</strong><small>Internet Explorer</small></span></a>
+          <button data-open="outlook"><img src="/winxp-personal/assets/outlook.png" alt=""><span><strong>E-mail</strong><small>Drop me a message!</small></span></button>
+          <hr>
+          <a href="/winxp-personal/assets/Resume.pdf" target="_blank"><img src="/winxp-personal/assets/pdf.png" alt="">My Resume</a>
+          <a href="https://github.com/" target="_blank" rel="noreferrer"><img src="/winxp-personal/assets/github.png" alt="">My Github</a>
+          <a href="https://www.linkedin.com/" target="_blank" rel="noreferrer"><img src="/winxp-personal/assets/linkedin.png" alt="">My Linkedin</a>
+          <button data-open="work"><img src="/winxp-personal/assets/cmd.png" alt="">My Work</button>
+          <button data-open="gallery"><img src="/winxp-personal/assets/paint.png" alt="">Paint</button>
+          <div class="all-programs">All Programs <img src="/winxp-personal/assets/all-programs.ico" alt=""></div>
+        </div>
+        <div class="menu-right">
+          <button data-open="welcome"><img src="/winxp-personal/assets/folder_plain.png" alt="">My Documents</button>
+          <button data-open="welcome"><img src="/winxp-personal/assets/recentdoc.png" alt="">My Recent Documents</button>
+          <button data-open="gallery"><img src="/winxp-personal/assets/folder_image.png" alt="">My Pictures</button>
+          <button data-open="gallery"><img src="/winxp-personal/assets/folder_music.png" alt="">My Music</button>
+          <button data-open="computer"><img src="/winxp-personal/assets/mycomputer.png" alt="">My Computer</button>
+          <hr>
+          <button data-open="about"><img src="/winxp-personal/assets/clipboard.png" alt="">Control Panel</button>
+          <button><img src="/winxp-personal/assets/defaultprog.png" alt="">Set Program Access and Defaults</button>
+          <button><img src="/winxp-personal/assets/printerfax.png" alt="">Printers and Faxes</button>
+          <hr>
+          <button><img src="/winxp-personal/assets/help.png" alt="">Help and Support</button>
+          <button><img src="/winxp-personal/assets/search.png" alt="">Search</button>
+          <button><img src="/winxp-personal/assets/run.png" alt="">Run...</button>
         </div>
       </div>
-    </section>
-
-    <section class="xp-window" id="win-projects" data-window="projects" style="--x: 345px; --y: 188px; --w: 590px;">
-      <header class="titlebar"><span><i class="mini folder"></i>My Projects</span><div class="win-actions"><button data-minimize="projects">_</button><button>[]</button><button data-close="projects">x</button></div></header>
-      <div class="content project-list">
-        <article><span class="file app"></span><div><h2>AI Studio</h2><p>Obsahove workflow, analyza, fronta a automatizace.</p></div></article>
-        <article><span class="file web"></span><div><h2>Retro Sites</h2><p>Mikrostranky inspirovane desktopovymi systemy a hrami.</p></div></article>
-        <article><span class="file ops"></span><div><h2>Automation Tools</h2><p>Male provozni nastroje, ktere setri klikani a rutinu.</p></div></article>
-      </div>
-    </section>
-
-    <section class="xp-window" id="win-notepad" data-window="notepad" style="--x: 510px; --y: 88px; --w: 420px;">
-      <header class="titlebar"><span><i class="mini notepad"></i>Notes.txt - Notepad</span><div class="win-actions"><button data-minimize="notepad">_</button><button>[]</button><button data-close="notepad">x</button></div></header>
-      <div class="menu"><button>File</button><button>Edit</button><button>Format</button><button>View</button><button>Help</button></div>
-      <textarea class="notepad" spellcheck="false">Marty XP
-
-- weby s charakterem
-- produktove prototypy
-- automatizace
-- retro vizualni systemy
-
-Kontakt: hello@example.com</textarea>
-    </section>
-
-    <section class="xp-window" id="win-paint" data-window="paint" style="--x: 235px; --y: 220px; --w: 480px;">
-      <header class="titlebar"><span><i class="mini paint"></i>Gallery - Paint</span><div class="win-actions"><button data-minimize="paint">_</button><button>[]</button><button data-close="paint">x</button></div></header>
-      <div class="content paint-box">
-        <div class="palette"><span></span><span></span><span></span><span></span><span></span></div>
-        <div class="canvas-art"><strong>XP</strong><em>retro portfolio mode</em></div>
-      </div>
-    </section>
-
-    <section class="xp-window small" id="win-trash" data-window="trash" style="--x: 610px; --y: 310px; --w: 330px;">
-      <header class="titlebar"><span><i class="mini trash"></i>Recycle Bin</span><div class="win-actions"><button data-minimize="trash">_</button><button>[]</button><button data-close="trash">x</button></div></header>
-      <div class="content"><p>Recycle Bin is empty. Nic nudneho tu nezbylo.</p></div>
-    </section>
-
-    <aside class="start-menu open" id="startMenu" aria-hidden="false">
-      <div class="start-head"><div class="start-avatar xp-photo">M</div><strong>User</strong></div>
-      <div class="start-body">
-        <div class="start-left">
-          <a href="#" data-open="welcome"><span class="large ie"></span><strong>Internet</strong><small>Internet Explorer</small></a>
-          <a href="mailto:hello@example.com"><span class="large mail"></span><strong>E-mail</strong><small>Outlook Express</small></a>
-          <button data-open="projects"><span class="large mines"></span>Minesweeper</button>
-          <button data-open="welcome"><span class="large folder"></span>Welcome</button>
-          <button data-open="notepad"><span class="large notepad"></span>Notes</button>
-          <button data-open="paint"><span class="large winamp"></span>Winamp</button>
-          <button data-open="paint"><span class="large paint"></span>Gallery</button>
-          <button data-open="welcome"><span class="large media"></span>Windows Media Player</button>
-        </div>
-        <div class="start-right">
-          <button data-open="welcome"><span class="small-start folder"></span>My Documents</button>
-          <button data-open="projects"><span class="small-start doc"></span>My Recent Documents</button>
-          <button data-open="paint"><span class="small-start pic"></span>My Pictures</button>
-          <button data-open="paint"><span class="small-start music"></span>My Music</button>
-          <button data-open="computer"><span class="small-start computer"></span>My Computer</button>
-          <button data-open="about"><span class="small-start control"></span>Control Panel</button>
-          <a href="https://github.com/" target="_blank" rel="noreferrer">GitHub</a>
-          <a href="mailto:hello@example.com">Email</a>
-        </div>
-      </div>
-      <div class="all-programs">All Programs <span></span></div>
+      <div class="menu-bottom"><button><img src="/winxp-personal/assets/logoff.png" alt="">Log Off</button><button><img src="/winxp-personal/assets/shutdown.png" alt="">Turn Off Computer</button></div>
     </aside>
 
-    <aside class="security-balloon">
+    <aside class="security-tip" id="securityTip">
       <button aria-label="Close warning">x</button>
       <strong>Your computer might be at risk</strong>
       <p>Antivirus software might not be installed.</p>
       <p>Click this balloon to fix this problem.</p>
     </aside>
 
-    <footer class="taskbar">
-      <button class="start" id="startButton"><span></span>start</button>
-      <nav class="tasks" id="tasks" aria-label="Open windows"></nav>
-      <div class="tray"><span class="tray-dot"></span><span class="tray-speaker"></span><time id="clock">--:--</time></div>
+    <footer class="startbar">
+      <button class="start-button" id="startButton"><img src="/winxp-personal/assets/winlogo.png" alt="">start</button>
+      <nav class="tray-tabs" id="trayTabs"></nav>
+      <div class="system-tray"><img src="/winxp-personal/assets/sound.png" alt=""><img src="/winxp-personal/assets/security.png" alt=""><time id="clock">12:45 AM</time></div>
     </footer>
   </main>
-
   <script src="/winxp-personal/app.js"></script>
 </body>
 </html>

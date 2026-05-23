@@ -1,19 +1,29 @@
 const startButton = document.getElementById('startButton');
 const startMenu = document.getElementById('startMenu');
-const taskbar = document.getElementById('tasks');
+const trayTabs = document.getElementById('trayTabs');
 const clock = document.getElementById('clock');
-const windows = [...document.querySelectorAll('.xp-window')];
-const securityBalloon = document.querySelector('.security-balloon');
-let topZ = 30;
+const securityTip = document.getElementById('securityTip');
+const galleryImage = document.getElementById('galleryImage');
+const windows = [...document.querySelectorAll('.window')];
+const galleryImages = [
+  '/winxp-personal/assets/gallery/0.webp',
+  '/winxp-personal/assets/gallery/1.webp',
+  '/winxp-personal/assets/gallery/2.webp',
+  '/winxp-personal/assets/gallery/3.webp',
+  '/winxp-personal/assets/gallery/4.webp',
+  '/winxp-personal/assets/gallery/5.webp'
+];
+let galleryIndex = 0;
+let topZ = 40;
 
-const titles = {
-  welcome: 'Welcome',
-  computer: 'My Computer',
-  about: 'About Me',
-  projects: 'My Projects',
-  notepad: 'Notes.txt',
-  paint: 'Gallery',
-  trash: 'Recycle Bin'
+const windowMeta = {
+  computer: { title: 'My Computer', icon: '/winxp-personal/assets/mycomputer.png' },
+  welcome: { title: 'Quick Start Guide', icon: '/winxp-personal/assets/help.png' },
+  about: { title: 'System Information', icon: '/winxp-personal/assets/users.png' },
+  work: { title: 'My Work', icon: '/winxp-personal/assets/cmd.png' },
+  gallery: { title: 'My Photography Collection', icon: '/winxp-personal/assets/folder_image.png' },
+  outlook: { title: 'Outlook Express', icon: '/winxp-personal/assets/outlook.png' },
+  bin: { title: 'Recycle Bin', icon: '/winxp-personal/assets/recycling_bin.png' }
 };
 
 function setClock() {
@@ -23,24 +33,25 @@ function setClock() {
   });
 }
 
-function renderTasks(activeId) {
-  taskbar.innerHTML = '';
+function renderTray(activeId) {
+  trayTabs.innerHTML = '';
   windows
     .filter((windowEl) => windowEl.classList.contains('open'))
     .forEach((windowEl) => {
       const id = windowEl.dataset.window;
+      const meta = windowMeta[id] || { title: id, icon: '/winxp-personal/assets/folder.png' };
       const button = document.createElement('button');
-      button.className = `task-button${id === activeId ? ' active' : ''}`;
-      button.innerHTML = `<i class="mini folder"></i>${titles[id] || id}`;
+      button.className = `tray-tab${id === activeId ? ' active' : ''}`;
+      button.innerHTML = `<img src="${meta.icon}" alt="">${meta.title}`;
       button.addEventListener('click', () => {
         if (windowEl.classList.contains('active')) {
           windowEl.classList.remove('open', 'active');
+          renderTray('');
         } else {
           openWindow(id);
         }
-        renderTasks(id);
       });
-      taskbar.appendChild(button);
+      trayTabs.appendChild(button);
     });
 }
 
@@ -49,7 +60,7 @@ function focusWindow(windowEl) {
   windows.forEach((item) => item.classList.remove('active'));
   windowEl.classList.add('active');
   windowEl.style.zIndex = topZ;
-  renderTasks(windowEl.dataset.window);
+  renderTray(windowEl.dataset.window);
 }
 
 function openWindow(id) {
@@ -63,22 +74,22 @@ function openWindow(id) {
 function closeWindow(id) {
   const windowEl = document.querySelector(`[data-window="${id}"]`);
   if (!windowEl) return;
-  windowEl.classList.remove('open', 'active');
+  windowEl.classList.remove('open', 'active', 'maximized');
   const next = windows.find((item) => item.classList.contains('open'));
   if (next) focusWindow(next);
-  renderTasks(next?.dataset.window || '');
+  renderTray(next?.dataset.window || '');
 }
 
 function makeDraggable(windowEl) {
-  const bar = windowEl.querySelector('.titlebar');
+  const titlebar = windowEl.querySelector('.titlebar');
   let startX = 0;
   let startY = 0;
   let originX = 0;
   let originY = 0;
   let dragging = false;
 
-  bar.addEventListener('pointerdown', (event) => {
-    if (window.matchMedia('(max-width: 780px)').matches) return;
+  titlebar.addEventListener('pointerdown', (event) => {
+    if (window.matchMedia('(max-width: 760px)').matches || windowEl.classList.contains('maximized')) return;
     dragging = true;
     focusWindow(windowEl);
     startX = event.clientX;
@@ -86,25 +97,29 @@ function makeDraggable(windowEl) {
     const rect = windowEl.getBoundingClientRect();
     originX = rect.left;
     originY = rect.top;
-    bar.setPointerCapture(event.pointerId);
+    titlebar.setPointerCapture(event.pointerId);
   });
 
-  bar.addEventListener('pointermove', (event) => {
+  titlebar.addEventListener('pointermove', (event) => {
     if (!dragging) return;
-    const nextX = Math.max(8, Math.min(window.innerWidth - windowEl.offsetWidth - 8, originX + event.clientX - startX));
-    const nextY = Math.max(8, Math.min(window.innerHeight - windowEl.offsetHeight - 48, originY + event.clientY - startY));
+    const nextX = Math.max(4, Math.min(window.innerWidth - windowEl.offsetWidth - 4, originX + event.clientX - startX));
+    const nextY = Math.max(4, Math.min(window.innerHeight - windowEl.offsetHeight - 39, originY + event.clientY - startY));
     windowEl.style.left = `${nextX}px`;
     windowEl.style.top = `${nextY}px`;
   });
 
-  bar.addEventListener('pointerup', (event) => {
+  titlebar.addEventListener('pointerup', (event) => {
     dragging = false;
-    bar.releasePointerCapture(event.pointerId);
+    titlebar.releasePointerCapture(event.pointerId);
   });
 }
 
 document.querySelectorAll('[data-open]').forEach((control) => {
-  control.addEventListener('click', () => openWindow(control.dataset.open));
+  control.addEventListener('click', (event) => {
+    const href = control.getAttribute('href');
+    if (href === '#') event.preventDefault();
+    openWindow(control.dataset.open);
+  });
 });
 
 document.querySelectorAll('[data-close]').forEach((control) => {
@@ -119,7 +134,24 @@ document.querySelectorAll('[data-minimize]').forEach((control) => {
     event.stopPropagation();
     const windowEl = document.querySelector(`[data-window="${control.dataset.minimize}"]`);
     windowEl?.classList.remove('open', 'active');
-    renderTasks('');
+    renderTray('');
+  });
+});
+
+document.querySelectorAll('[data-maximize]').forEach((control) => {
+  control.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const windowEl = document.querySelector(`[data-window="${control.dataset.maximize}"]`);
+    if (!windowEl) return;
+    windowEl.classList.toggle('maximized');
+    focusWindow(windowEl);
+  });
+});
+
+document.querySelectorAll('[data-slide]').forEach((control) => {
+  control.addEventListener('click', () => {
+    galleryIndex = (galleryIndex + Number(control.dataset.slide) + galleryImages.length) % galleryImages.length;
+    galleryImage.src = galleryImages[galleryIndex];
   });
 });
 
@@ -139,14 +171,12 @@ document.addEventListener('click', (event) => {
   }
 });
 
+securityTip?.querySelector('button')?.addEventListener('click', () => securityTip.remove());
+
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') startMenu.classList.remove('open');
 });
 
-securityBalloon?.querySelector('button')?.addEventListener('click', () => {
-  securityBalloon.remove();
-});
-
 setClock();
 setInterval(setClock, 15000);
-renderTasks('computer');
+renderTray('computer');
